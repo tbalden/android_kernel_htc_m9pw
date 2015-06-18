@@ -1,0 +1,20 @@
+config MTK_FLASHLIGHT
+  bool CONFIG_MTK_FLASHLIGHT
+  default n
+  help
+    CONFIG_MTK_FLASHLIGHT
+
+config HTC_FLASHLIGHT_COMMON
+        tristate "Common flashlight API for camera"
+        help
+          Say Y here to enable the common API for front flashlight utilization
+
+config FLASHLIGHT_TPS61310
+        tristate "TI TPS61310 flashlight"
+        help
+          Say Y here to enable the TI TPS61310 flashlight
+
+config FLASHLIGHT_SY7802
+        tristate "SILERGY SY7802 flashlight"
+        help
+          Say Y here to enable the SILERGY SY7802 flashlight

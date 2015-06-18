@@ -1,0 +1,187 @@
+/*
+ * Mediatek's MT6795 SoC device tree source
+ *
+ * Copyright (c) 2013 MediaTek Co., Ltd.
+ *              http://www.mediatek.com
+ *
+ */
+
+/dts-v1/;
+
+/include/ "mt6795.dtsi"
+/include/ "cust_eint.dtsi"
+/include/ "htc_features.dtsi"
+/include/ "mt6795-touch-hiau_ml.dtsi"
+
+/ {
+	htc_board_info {
+		htc_pid,htc_sku1 = <0x0 0x0>;
+	};
+
+	memory@00000000 {
+		device_type = "memory";
+		reg = <0 0x40000000 0 0x1E800000>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+		
+		reserve-memory-ccci_md1 {
+			compatible = "reserve-memory-ccci_md1";
+			no-map;
+			size = <0 0x8200000>;
+			alignment = <0 0x2000000>;
+			alloc-ranges = <0 0x40000000 0 0xC0000000>;
+		};
+	};
+
+	htc_receiver{
+		htc_aud,select-gpio = <63>;
+		htc_aud,enable-gpio = <48>;
+	};
+
+	bus {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges = <0 0 0 0xffffffff>;
+
+		I2C3@0x11010000 {
+			nxp_pn544_nfc@28 {
+				compatible = "nxp,pn544-nfc";
+				reg = <0x28>;
+				nxp,irq-gpio = <115>;
+				nxp,ven-gpio = <135>;
+				nxp,fwdl-gpio = <89>;
+				nxp,pvdd-gpio = <53>;
+				nxp,ven_isinvert = <0>;
+				nxp,isalive = <1>;
+			};
+		};
+
+		I2C3@0x11010000 {
+			htc_mcu@72{
+				compatible = "htc_mcu";
+				reg = <0x72>;
+				mcu,intr-gpio  = <52>;
+				mcu,gs_chip_layout = <1>;
+				mcu,acceleration_axes = <7>;
+				mcu,magnetic_axes = <7>;
+				mcu,gyro_axes = <7>;
+				mcu,Cpu_wake_mcu-gpio = <187>;
+				mcu,Reset-gpio = <131>;
+				mcu,Chip_mode-gpio = <94>;
+				mcu,mcu_status-gpio = <91>;
+				mcu,als_levels = <2 19 36 212 435 2993 4505 8142 12676 65535>;
+				mcu,als_goldl = <0x29>;
+				mcu,als_goldh = <0x0A>;
+				mcu,ps_thd_add = <0x1E>;
+				mcu,ps_thd_fixed = <0x15>;
+				mcu,SR_1V8 = "MT6331_POWER_LDO_VCAM_AF";
+				touch_enable = <1>;
+				vibrate_ms = <40>;
+				mcu,rv_calibration = <2>;
+			};
+			htc_mcu_flash@01 {
+				compatible = "htc_mcu_flash";
+				reg = <0x01>;
+				mcu,MHL_WA = <1>;
+			};
+			htc_mcu_dload@02 {
+				compatible = "htc_mcu_dload";
+				reg = <0x02>;
+			};
+			tca6418@34 {
+				compatible = "ti,tca6418";
+				reg = <0x34>;
+			};
+			tps61310@33 {
+				compatible = "TPS61310_FLASHLIGHT";
+				reg = <0x33>;
+				tps61310,tps61310_strb0 = <6>;
+				tps61310,tps61310_strb1 = <7>;
+				tps61310,flash_duration_ms = <600>;
+				tps61310,enable_FLT_1500mA = <1>;
+				tps61310,led_count = <1>;
+				tps61310,disable_tx_mask = <1>;
+				htc,dualflash = <2>;
+
+				tps61310_flash0: htc,tps61310_flash_0 {
+					label = "flash";
+					linux,name = "flash_0";
+					linux,default-trigger =	"flash0_trigger";
+					htc,id = <0>;
+					htc,default-state = "off";
+					htc,max-current = <750>;
+				};
+
+				tps61310_flash1: htc,tps61310_flash_1 {
+					label = "flash";
+					linux,name = "flash_1";
+					linux,default-trigger =	"flash1_trigger";
+					htc,id = <1>;
+					htc,default-state = "off";
+					htc,max-current = <750>;
+				};
+
+				tps61310_torch0: htc,tps61310_torch_0 {
+					label = "torch";
+					linux,name = "torch_0";
+					linux,default-trigger =	"torch0_trigger";
+					htc,id = <0>;
+					htc,default-state = "off";
+					htc,max-current = <200>;
+				};
+
+				tps61310_torch1: htc,tps61310_torch_1 {
+					label = "torch";
+					linux,name = "torch_1";
+					linux,default-trigger =	"torch1_trigger";
+					htc,id = <1>;
+					htc,default-state = "off";
+					htc,max-current = <200>;
+				};
+			};
+		};
+		I2C4@0x11011000 {
+			richteck_rt5506_amp@52 {
+				compatible = "richtek,rt5506-amp";
+				reg = <0x52>;
+				rt55xx,version = <0x0>;
+			};
+		};
+
+		I2C4@0x11011000 {
+			nxp_tfa9895_amp@37 {
+				compatible = "nxp,tfa9895-amp";
+				reg = <0x37>;
+			};
+		};
+
+		I2C4@0x11011000 {
+			nxp_tfa9895l_amp@36 {
+				compatible = "nxp,tfa9895l-amp";
+				reg = <0x36>;
+			};
+		};
+
+		CIR_UART {
+			compatible = "CIR";
+			cell-index = <1>;
+			gpio = <97 96>;	/* TX, RX */
+			uart_tx_config = <1 1 0 0 1>;	/* MODE, DIR, PULL_EN, PULL, OUT */
+			uart_rx_config = <1 0 1 1 0>;	/* MODE, DIR, PULL_EN, PULL, OUT */
+			uart_tx_sleep_config = <0 0 0 0 0>;	/* MODE, DIR, PULL_EN, PULL, OUT */
+			uart_rx_sleep_config = <0 0 0 0 0>;	/* MODE, DIR, PULL_EN, PULL, OUT */
+			power_save;
+		};
+	};
+	hall_ak8789 {
+		compatible = "hall_sensor,ak8789";
+		hall,att_used = <2>;
+		hall,att_gpio = <9>;
+		hall,att_gpio_s = <8>;
+	};
+};

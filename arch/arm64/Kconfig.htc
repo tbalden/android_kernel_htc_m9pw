@@ -1,0 +1,40 @@
+comment "HTC Debugging Features"
+menuconfig HTC_DEBUG
+        bool "HTC Debugging Feature Switch"
+        default y
+        help
+          Enable collection of debug features.
+          This feature is enabled in defconfig.
+
+comment "HTC features"
+menuconfig HTC_FEATURES
+        bool "HTC Implement Features"
+        default n
+        help
+          Enable collection of HTC features.
+          This feature is enabled in defconfig.
+
+if HTC_FEATURES
+
+config HTC_MODEM_EXCEPTION_INFO_EXPORT
+        bool "HTC modem exception info export"
+        depends on HTC_FEATURES && MTK_ECCCI_DRIVER
+        default n
+        help
+          export modem exception info for tell htc
+
+endif
+
+comment "HTC Debug Flag"
+menuconfig HTC_ORR
+	bool "HTC Debug Flag Features"
+        default y
+	help
+          Enable Debug Flag features.
+
+config HTC_FEATURES_RIL_PCN0004_HTC_GARBAGE_FILTER
+        tristate "HTC_FEATURES_RIL_PCN0004_HTC_GARBAGE_FILTER"
+        default y
+        depends on MTK_ECCCI_DRIVER && HTC_FEATURES
+        ---help---
+          Garbage Filter of TCP

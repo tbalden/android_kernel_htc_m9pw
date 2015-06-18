@@ -1,0 +1,27 @@
+#
+# HTC MISC Driver Kconfig
+#
+config HTC_REBOOT_REASON_INFORMATION
+        default y
+        bool "HTC style reboot reason information features"
+        help
+          Say Y here if you want the HTC style reboot reason information features
+
+config HTC_DEBUG_BOOTLOADER_LOG
+	default y
+	bool "HTC Bootloader Log Support"
+	help
+	  Say Y here if you want the HTC Bootloader Log Support
+
+config TI_TCA6418
+	default n
+	tristate "TCA6418 GPIO expander support"
+	help
+	  If you say yes here you get support for Texas Instruments
+	  GPIO expander TCA6418.
+
+config HTC_RECEIVER
+	default n
+	tristate "Receiver Control circuit support"
+	help
+	  Say Y if you are using specific GPIO for Receiver Control.
