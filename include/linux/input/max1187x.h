@@ -200,5 +200,10 @@ struct max1187x_pdata {
 	struct pinctrl_state *gpio_state_suspend;
 };
 
+#if 1
+// tbalden
+extern uint8_t is_screen_on(void);
+#endif
+
 #endif 
 

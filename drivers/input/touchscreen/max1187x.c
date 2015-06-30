@@ -133,6 +133,14 @@ do {                                            \
 #define RETRY_TIMES_CONFIG 5
 #define SHIFT_BITS 10
 
+#if 1
+// tbalden
+int screen_on = 1;
+extern uint8_t is_screen_on(void) {
+    return screen_on;
+}
+#endif
+
 static u32 debug_mask = 0x00080000;
 static struct kobject *android_touch_kobj;
 static struct data *gl_ts;
@@ -4940,6 +4948,12 @@ static void early_suspend(struct early_suspend *h)
 	DISABLE_IRQ();
 	(void)send_mtp_command(ts, data, NWORDS(data));
 	pr_info("max1187x_%s: sleep", __func__);
+#if 1
+// tbalden
+	pr_info("tb - screen off detected\n");
+	screen_on = 0;
+#endif
+
 #ifdef CONFIG_SYNC_TOUCH_STATUS
 	switch_sensor_hub(ts, 1);
 #endif
@@ -4961,7 +4975,11 @@ static void late_resume(struct early_suspend *h)
 	ENABLE_IRQ();
 	(void)send_mtp_command(ts, data, NWORDS(data));
 	pr_info("max1187x_%s: wake up", __func__);
-
+#if 1
+// tbalden
+	pr_info("tb - screen on detected\n");
+	screen_on = 1;
+#endif
 	
 	if(!PDATA(no_force_calibration))
 		(void)send_mtp_command(ts, data1, NWORDS(data1));
