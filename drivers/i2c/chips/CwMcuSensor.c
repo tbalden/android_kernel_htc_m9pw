@@ -1777,6 +1777,23 @@ static ssize_t get_ps_canc(struct device *dev, struct device_attribute *attr,
         return ret;
 }
 
+struct device *dev_inited = NULL;
+u16 get_proximity_adc(void) {
+	if (dev_inited != NULL) {
+	        struct cwmcu_data *mcu_data = dev_get_drvdata(dev_inited);
+	        u8 data[REPORT_EVENT_PROXIMITY_LEN] = {0};
+	        u16 proximity_adc;
+
+	        CWMCU_i2c_read_power(mcu_data, CWSTM32_READ_Proximity,
+					 data, sizeof(data));
+
+		proximity_adc = (data[2] << 8) | data[1];
+		return proximity_adc;
+	} else {
+		return 0;
+	}
+}
+
 static ssize_t get_proximity(struct device *dev, struct device_attribute *attr,
                             char *buf)
 {
@@ -5895,6 +5912,7 @@ static int create_sysfs_interfaces(struct cwmcu_data *mcu_data)
 		res = PTR_ERR(mcu_data->sensor_dev);
 		goto err_device_create;
 	}
+	dev_inited = mcu_data->sensor_dev;
 
 	res = dev_set_drvdata(mcu_data->sensor_dev, mcu_data);
 	if (res)
@@ -5952,6 +5970,7 @@ static void destroy_sysfs_interfaces(struct cwmcu_data *mcu_data)
 	put_device(mcu_data->bma250_dev);
 	device_unregister(mcu_data->bma250_dev);
 	class_destroy(mcu_data->bma250_class);
+	dev_inited = NULL;
 }
 
 static void cwmcu_remove_trigger(struct iio_dev *indio_dev)

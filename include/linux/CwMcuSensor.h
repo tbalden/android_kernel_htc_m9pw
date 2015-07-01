@@ -421,4 +421,7 @@ struct cwmcu_platform_data {
 };
 #endif 
 
+// get proximity value, over 0 proximity is near.
+extern u16 get_proximity_adc(void);
+
 #endif 
