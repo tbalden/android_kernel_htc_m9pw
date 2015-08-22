@@ -25,11 +25,14 @@
 #include <linux/fs.h>
 #include <linux/file.h>
 #include <linux/mm.h>
+#include <linux/of.h>
 
 mm_segment_t oldfs;
 
 #define PROCNAME "driver/hdf"
 #define FLAG_LEN 64
+#define DEVICE_TREE_PARA_PATH "/chosen/para"
+#define ENABLE_LOG_PROPERTY "enable_log"
 
 #if 0
 #define SECMSG(s...) pr_err("[SECURITY] "s)
@@ -155,11 +158,40 @@ static const struct file_operations htc_debug_fops = {
     .release    = single_release,
 };
 
+static void init_from_device_tree(void)
+{
+    struct device_node *para_node;
+    char *data;
+    int property_size;
+    para_node = of_find_node_by_path(DEVICE_TREE_PARA_PATH);
+
+    if(NULL == para_node)
+    {
+		pr_info("%s - para_node haven't created.\n",__func__);
+        return;
+    }
+
+    data = (char *) of_get_property(para_node, ENABLE_LOG_PROPERTY, &property_size);
+    pr_info("%s - length: %d\n", __func__, property_size);
+    if(property_size < FLAG_LEN)
+        return;
+
+    pr_info("%s - loglevel: %s\n", __func__, data);
+
+    memset(htc_debug_flag, 0, (FLAG_LEN + 1));
+    memcpy(htc_debug_flag, data, FLAG_LEN);
+
+    
+    first_read = 0;
+}
+
 static int __init sysinfo_proc_init(void)
 {
     struct proc_dir_entry *entry = NULL;
 
     SECMSG("%s:Init HTC Debug Flag proc interface.\r\n", __func__);
+
+    init_from_device_tree();
 
     
     entry = proc_create_data(PROCNAME, 0660, NULL, &htc_debug_fops, NULL);

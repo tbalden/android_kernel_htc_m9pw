@@ -48,5 +48,9 @@ struct hall_platform_data {
 	uint32_t gpio_att:16;
 	uint32_t gpio_att_s:16;
 	uint8_t att_used;
+	uint32_t SW_timer_debounce;
+	uint32_t HW_timer_far_debounce;
+	uint32_t HW_timer_near_debounce;
+	uint32_t HW_engineer_id;
 };
 #endif

@@ -288,6 +288,7 @@ static FPC1020_DEV_ATTR(diag, spi_regsize,	DEVFS_DIAG_MODE_RO);
 static FPC1020_DEV_ATTR(diag, spi_data ,	DEVFS_DIAG_MODE_RW);
 static FPC1020_DEV_ATTR(diag, last_capture_time,DEVFS_DIAG_MODE_RO);
 static FPC1020_DEV_ATTR(diag, finger_present_status, DEVFS_DIAG_MODE_RO);
+static FPC1020_DEV_ATTR(diag, debug_flag, DEVFS_DIAG_MODE_RW);
 
 
 static struct attribute *fpc1020_diag_attrs[] = {
@@ -298,6 +299,7 @@ static struct attribute *fpc1020_diag_attrs[] = {
 	&fpc1020_attr_spi_data.attr.attr,
 	&fpc1020_attr_last_capture_time.attr.attr,
 	&fpc1020_attr_finger_present_status.attr.attr,
+	&fpc1020_attr_debug_flag.attr.attr,
 	NULL
 };
 
@@ -340,8 +342,17 @@ char firmware_fpc[30] = {0};
 int pos;
 static int fp_clk_ctrl = 0;
 bool match_firmware;
+int fp_tamper_flag = 1;
 extern void htc_enable_clk(int);
 extern void htc_disable_clk(int);
+
+static int __init get_tamper_flag(char *str)
+{
+        int ret = kstrtouint(str, 0, &fp_tamper_flag);
+        pr_info(" %d: %d from %s",
+                        ret, fp_tamper_flag, str);
+        return ret;
+} early_param("td.sf", get_tamper_flag);
 
 static ssize_t sleep_store(struct device *dev, struct device_attribute *attr,
 		const char *buf, size_t count)
@@ -1925,6 +1936,9 @@ static ssize_t fpc1020_show_attr_diag(struct device *dev,
 			error = 0;
 		}
 		break;
+	case offsetof(fpc1020_diag_t, debug_flag):
+		val = (int)fpc1020->diag.debug_flag;
+		break;
 	}
 
 	if (error >= 0 && !is_buffer) {
@@ -1977,6 +1991,12 @@ static ssize_t fpc1020_store_attr_diag(struct device *dev,
 			error = fpc1020_spi_debug_buffer_write(fpc1020,
 								buf,
 								count);
+		}
+	} else if (fpc_attr->offset == offsetof(fpc1020_diag_t, debug_flag)) {
+		error = kstrtou64(buf, 0, &val);
+
+		if (!error) {
+			fpc1020->diag.debug_flag = (u8)val;
 		}
 	} else
 		error = -EPERM;

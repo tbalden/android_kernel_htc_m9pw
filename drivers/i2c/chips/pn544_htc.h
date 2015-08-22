@@ -33,6 +33,8 @@
 #define NFC_READ_RFSKUID_MTK6795 0
 #endif 
 
+
+
 #define NFC_BOOT_MODE_NORMAL 0
 #define NFC_BOOT_MODE_FTM 1
 #define NFC_BOOT_MODE_DOWNLOAD 2

@@ -33,6 +33,13 @@
 #include <linux/earlysuspend.h>
 #endif
 
+extern int fp_tamper_flag;
+#ifdef dev_dbg
+#undef dev_dbg
+#endif
+#define dev_dbg(dev, format, arg...) do { if (fp_tamper_flag == 0) \
+					dev_printk(KERN_DEBUG, dev, format, ##arg); \
+					}while(0)
 extern const bool target_little_endian;
 
 #define FPC1020_DEV_NAME                        "fpc1020"
@@ -71,6 +78,7 @@ extern const bool target_little_endian;
 #define FPC1020_RESET_HIGH2_US			1250
 
 #define FPC1020_CAPTURE_WAIT_FINGER_DELAY_MS 	20
+#define FPC1020_INPUT_WAIT_FINGER_DELAY_MS 	10
 
 #define FPC1020_WAKEUP_DETECT_ZONE_COUNT	2
 #define FPC1020_WAKEUP_DETECT_ROWS		8
@@ -189,6 +197,7 @@ typedef struct fpc1020_diag {
 	u8  spi_data;		
 	u16 last_capture_time;	
 	u16 finger_present_status;	
+	u8  debug_flag;		
 } fpc1020_diag_t;
 
 typedef struct fpc1020_chip_info {

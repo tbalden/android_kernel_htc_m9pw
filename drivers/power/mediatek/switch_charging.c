@@ -544,7 +544,6 @@ kal_uint32 set_bat_charging_current_limit(int current_limit)
 
 void select_charging_curret(void)
 {
-
 	if (g_ftm_battery_flag) {
 		battery_xlog_printk(BAT_LOG_CRTI, "[BATTERY] FTM charging : %d\r\n",
 				    charging_level_data[0]);
@@ -571,13 +570,8 @@ void select_charging_curret(void)
 		g_temp_input_CC_value = CHARGE_CURRENT_700_00_MA;
 		g_temp_CC_value = CHARGE_CURRENT_700_00_MA;
 	} else if (g_chg_limit_reason & HTC_BATT_CHG_LIMIT_BIT_THRML) {
-#ifdef HIAUML_BATT
 		g_temp_input_CC_value = CHARGE_CURRENT_1000_00_MA;
 		g_temp_CC_value = CHARGE_CURRENT_1000_00_MA;
-#else
-		g_temp_input_CC_value = CHARGE_CURRENT_700_00_MA;
-		g_temp_CC_value = CHARGE_CURRENT_700_00_MA;
-#endif
 	} else if (g_chg_in_mhl == CONNECT_TYPE_MHL_1000MA) {
 		g_temp_input_CC_value = CHARGE_CURRENT_1000_00_MA;
 		g_temp_CC_value = CHARGE_CURRENT_1000_00_MA;
@@ -740,9 +734,16 @@ static void pchr_turn_on_charging(void)
 
 		if ((pre_g_temp_CC_value != g_temp_CC_value) ||
 			(pre_g_temp_input_CC_value != g_temp_input_CC_value)) {
-			set_current_done = KAL_FALSE;
-			pre_g_temp_CC_value = g_temp_CC_value;
-			pre_g_temp_input_CC_value = g_temp_input_CC_value;
+			if(((g_chg_limit_reason & HTC_BATT_CHG_LIMIT_BIT_THRML)||(g_chg_limit_reason & HTC_BATT_CHG_LIMIT_BIT_TALK)) &&
+				((pre_g_temp_input_CC_value < g_temp_CC_value) || (pre_g_temp_input_CC_value < g_temp_input_CC_value))){
+                                set_current_done = KAL_TRUE;
+                                g_temp_CC_value = pre_g_temp_CC_value;
+                                g_temp_input_CC_value = pre_g_temp_input_CC_value;
+			}else{
+				set_current_done = KAL_FALSE;
+				pre_g_temp_CC_value = g_temp_CC_value;
+				pre_g_temp_input_CC_value = g_temp_input_CC_value;
+			}
 		}
 
 		battery_xlog_printk(BAT_LOG_CRTI,

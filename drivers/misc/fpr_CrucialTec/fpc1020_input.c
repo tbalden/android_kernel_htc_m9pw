@@ -114,6 +114,8 @@ int fpc1020_input_task(fpc1020_data_t *fpc1020)
 #endif
 			}
 		}
+		if(fpc1020->finger_state == FPC1020_FINGER_STATE_DOWN)
+			msleep(FPC1020_INPUT_WAIT_FINGER_DELAY_MS);
 
 	}
 	if(fpc1020->finger_state == FPC1020_FINGER_STATE_DOWN) {
@@ -200,10 +202,6 @@ static int fpc1020_wait_finger_present_lpm(fpc1020_data_t *fpc1020)
 	bool wakeup_center = false;
 	bool wakeup_ext    = false;
 	bool wakeup        = false;
-
-#ifdef DEBUG
-  LOG_FUNCTION_ENTRY();
-#endif
 
 #ifdef HTC_WAKEUP 
 

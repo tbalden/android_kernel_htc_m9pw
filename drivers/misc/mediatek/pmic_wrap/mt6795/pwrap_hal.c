@@ -75,8 +75,6 @@ static irqreturn_t mt_pmic_wrap_irq(int irqno, void *dev_id)
 	spin_lock_irqsave(&wrp_lock,flags);
 	
 	pwrap_dump_all_register();
-	
-	WRAP_WR32(PMIC_WRAP_HARB_HPRIO,1<<3);
 
 	
 	
@@ -182,9 +180,13 @@ static S32 mt_pwrap_store_hal(const char *buf,size_t count)
 	return count;
 }
 #else
+extern void md_cd_lock_cldma_clock_src(int locked);
+
 static inline void pwrap_dump_ap_register(void)
 {
 	U32 i=0;
+	void __iomem *TXUBC_DC2DC_SPI;
+
 	PWRAPREG("dump pwrap register, base=0x%p\n",PMIC_WRAP_BASE);
 	PWRAPREG("address     :   3 2 1 0    7 6 5 4    B A 9 8    F E D C \n");
 	for(i=0;i<=0x150;i+=16)
@@ -198,6 +200,14 @@ static inline void pwrap_dump_ap_register(void)
 	
 	PWRAPREG("ap dump infra 0x10000048=0x%x\n",WRAP_RD32(infracfg_ao_base+0x48));
 	PWRAPREG("ap dump infra 0x10000090=0x%x\n",WRAP_RD32(topckgen_base+0x90));
+	
+	TXUBC_DC2DC_SPI = ioremap_nocache(0x236B0F60, 0x4);
+	if (TXUBC_DC2DC_SPI == NULL)
+		return;
+	md_cd_lock_cldma_clock_src(1);
+	PWRAPREG("MD TXUBC_DC2DC_SPI_STATUS:0x%8x \n",WRAP_RD32(TXUBC_DC2DC_SPI));
+	md_cd_lock_cldma_clock_src(0);
+	iounmap(TXUBC_DC2DC_SPI);
 	return;
 }
 static inline void pwrap_dump_pmic_register(void)
@@ -1171,8 +1181,6 @@ static irqreturn_t mt_pmic_wrap_irq(int irqno, void *dev_id)
 	
 	PWRAPREG("infra clock1=0x%x\n",WRAP_RD32(infracfg_ao_base+0x48));
 	pwrap_dump_all_register();
-	
-	WRAP_WR32(PMIC_WRAP_HARB_HPRIO,1<<3);
 
 	
 	

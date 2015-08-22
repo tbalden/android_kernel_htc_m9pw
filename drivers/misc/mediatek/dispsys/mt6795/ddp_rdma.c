@@ -385,8 +385,10 @@ void rdma_set_ultra(unsigned int idx, unsigned int width, unsigned int height, u
   pre_ultra_high_ofs = pre_ultra_high_level - pre_ultra_low_level ;
   
   
-  DISP_REG_SET(handle,idx*DISP_RDMA_INDEX_OFFSET+ DISP_REG_RDMA_MEM_GMC_SETTING_0, 
-    ultra_low_level|(pre_ultra_low_ofs<<8)|(ultra_high_ofs<<16)|(pre_ultra_high_ofs<<24));
+  
+  
+  
+  DISP_REG_SET(handle,idx*DISP_RDMA_INDEX_OFFSET+ DISP_REG_RDMA_MEM_GMC_SETTING_0, 0x37016EDD);
 
   DISP_REG_SET_FIELD(handle,FIFO_CON_FLD_OUTPUT_VALID_FIFO_THRESHOLD, idx*DISP_RDMA_INDEX_OFFSET+ DISP_REG_RDMA_FIFO_CON, fifo_valid_size);
 

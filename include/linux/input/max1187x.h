@@ -190,6 +190,7 @@ struct max1187x_pdata {
 #endif
 	bool			switch_invert;
 	bool			no_force_calibration;
+	bool			force_calibration_hall_near;
 	u32			hall_block_touch_time;
 	u32			retry_config_update_delay;
 	struct max1187x_virtual_key *button_data;

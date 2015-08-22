@@ -1,136 +1,15 @@
-/*
-** $Id: //Department/DaVinci/BRANCHES/MT6620_WIFI_DRIVER_V2_3/mgmt/rlm_domain.c#2 $
-*/
-
-/*! \file   "rlm_domain.c"
-    \brief
-
-*/
 
 
 
-/*
-** $Log: rlm_domain.c $
-**
-** 01 23 2013 eason.tsai
-** [BORA00002255] [MT6630 Wi-Fi][Driver] develop
-** Rollback //BORA/DEV/MT6630WIFI_DRV/mgmt/rlm_domain.c to revision 1
-**
-** 09 17 2012 cm.chang
-** [BORA00002149] [MT6630 Wi-Fi] Initial software development
-** Duplicate source from MT6620 v2.3 driver branch
-** (Davinci label: MT6620_WIFI_Driver_V2_3_120913_1942_As_MT6630_Base)
- *
- * 11 10 2011 cm.chang
- * NULL
- * Modify debug message for XLOG
- *
- * 09 29 2011 cm.chang
- * NULL
- * Change the function prototype of rlmDomainGetChnlList()
- *
- * 09 23 2011 cm.chang
- * [WCXRP00000969] [MT6620 Wi-Fi][Driver][FW] Channel list for 5G band based on country code
- * Let channel number to zero if band is illegal
- *
- * 09 22 2011 cm.chang
- * [WCXRP00000969] [MT6620 Wi-Fi][Driver][FW] Channel list for 5G band based on country code
- * Exclude channel list with illegal band
- *
- * 09 15 2011 cm.chang
- * [WCXRP00000969] [MT6620 Wi-Fi][Driver][FW] Channel list for 5G band based on country code
- * Use defined country group to have a change to add new group
- *
- * 09 08 2011 cm.chang
- * [WCXRP00000969] [MT6620 Wi-Fi][Driver][FW] Channel list for 5G band based on country code
- * Use new fields ucChannelListMap and ucChannelListIndex in NVRAM
- *
- * 08 31 2011 cm.chang
- * [WCXRP00000969] [MT6620 Wi-Fi][Driver][FW] Channel list for 5G band based on country code
- * .
- *
- * 06 01 2011 cm.chang
- * [WCXRP00000756] [MT6620 Wi-Fi][Driver] 1. AIS follow channel of BOW 2. Provide legal channel function
- * Provide legal channel function based on domain
- *
- * 03 19 2011 yuche.tsai
- * [WCXRP00000584] [Volunteer Patch][MT6620][Driver] Add beacon timeout support for WiFi Direct.
- * Add beacon timeout support for WiFi Direct Network.
- *
- * 03 02 2011 terry.wu
- * [WCXRP00000505] [MT6620 Wi-Fi][Driver/FW] WiFi Direct Integration
- * Export rlmDomainGetDomainInfo for p2p driver.
- *
- * 01 12 2011 cm.chang
- * [WCXRP00000354] [MT6620 Wi-Fi][Driver][FW] Follow NVRAM bandwidth setting
- * User-defined bandwidth is for 2.4G and 5G individually
- *
- * 12 07 2010 cm.chang
- * [WCXRP00000238] MT6620 Wi-Fi][Driver][FW] Support regulation domain setting from NVRAM and supplicant
- * 1. Country code is from NVRAM or supplicant
- * 2. Change band definition in CMD/EVENT.
- *
- * 07 08 2010 cp.wu
- *
- * [WPD00003833] [MT6620 and MT5931] Driver migration - move to new repository.
- *
- * 07 08 2010 cm.chang
- * [WPD00003841][LITE Driver] Migrate RLM/CNM to host driver
- * Check draft RLM code for HT cap
- *
- * 03 25 2010 cm.chang
- * [BORA00000018]Integrate WIFI part into BORA for the 1st time
- * Filter out not supported RF freq when reporting available chnl list
- *
- * 01 22 2010 cm.chang
- * [BORA00000018]Integrate WIFI part into BORA for the 1st time
- * Support protection and bandwidth switch
- *
- * 01 13 2010 cm.chang
- * [BORA00000018]Integrate WIFI part into BORA for the 1st time
- * Provide query function about full channle list.
- *
- * Dec 1 2009 mtk01104
- * [BORA00000018] Integrate WIFI part into BORA for the 1st time
- *
- *
-**
-*/
 
-/*******************************************************************************
-*                         C O M P I L E R   F L A G S
-********************************************************************************
-*/
 
-/*******************************************************************************
-*                    E X T E R N A L   R E F E R E N C E S
-********************************************************************************
-*/
+
 #include "precomp.h"
 
-/*******************************************************************************
-*                              C O N S T A N T S
-********************************************************************************
-*/
 
-/*******************************************************************************
-*                             D A T A   T Y P E S
-********************************************************************************
-*/
 
-/*******************************************************************************
-*                            P U B L I C   D A T A
-********************************************************************************
-*/
 
-/* The following country or domain shall be set from host driver.
- * And host driver should pass specified DOMAIN_INFO_ENTRY to MT6620 as
- * the channel list of being a STA to do scanning/searching AP or being an
- * AP to choose an adequate channel if auto-channel is set.
- */
 
-/* Define mapping tables between country code and its channel set
- */
 static const UINT_16     g_u2CountryGroup0[] = {
     COUNTRY_CODE_AO,    COUNTRY_CODE_BZ,    COUNTRY_CODE_BJ,    COUNTRY_CODE_BT,
     COUNTRY_CODE_BO,    COUNTRY_CODE_BI,    COUNTRY_CODE_CM,    COUNTRY_CODE_CF,
@@ -228,9 +107,6 @@ static const UINT_16     g_u2CountryGroup19[] = {
 };
 static const UINT_16     g_u2CountryGroup20[] = {
     COUNTRY_CODE_EU
-    /* When country code is not found, this domain info will be used.
-     * So mark all country codes to reduce search time. 20110908
-     */
 };
 
 
@@ -238,252 +114,252 @@ DOMAIN_INFO_ENTRY arSupportedRegDomains[] = {
     {
 		(PUINT_16) g_u2CountryGroup0, sizeof(g_u2CountryGroup0) / 2,
 		{
-			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, /* CH_SET_2G4_1_13 */
+			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, 
 
-			{ 115, BAND_NULL,  0,  0,   0,  FALSE }, /* CH_SET_UNII_LOW_NA */
-			{ 118, BAND_NULL,  0,  0,   0,  FALSE }, /* CH_SET_UNII_MID_NA */
-			{ 121, BAND_NULL,  0,  0,   0,  FALSE }, /* CH_SET_UNII_WW_NA */
-			{ 125, BAND_NULL,  0,  0,   0,  FALSE }, /* CH_SET_UNII_UPPER_NA */
+			{ 115, BAND_NULL,  0,  0,   0,  FALSE }, 
+			{ 118, BAND_NULL,  0,  0,   0,  FALSE }, 
+			{ 121, BAND_NULL,  0,  0,   0,  FALSE }, 
+			{ 125, BAND_NULL,  0,  0,   0,  FALSE }, 
 			{ 0,   BAND_NULL,  0,  0,   0,  FALSE }
 		}
     },
     {
 		(PUINT_16) g_u2CountryGroup1, sizeof(g_u2CountryGroup1) / 2,
 		{
-			{  81, BAND_2G4, CHNL_SPAN_5,    1,  11,  FALSE }, /* CH_SET_2G4_1_11 */
+			{  81, BAND_2G4, CHNL_SPAN_5,    1,  11,  FALSE }, 
 
-			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, /* CH_SET_UNII_LOW_36_48 */
-			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, /* CH_SET_UNII_MID_52_64 */
-			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  12,  FALSE }, /* CH_SET_UNII_WW_100_144 */
-			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   5,  FALSE }, /* CH_SET_UNII_UPPER_149_165 */
+			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, 
+			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, 
+			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  12,  FALSE }, 
+			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   5,  FALSE }, 
 			{   0, BAND_NULL,           0,   0,   0,  FALSE }
 		}
     },
     {
 		(PUINT_16) g_u2CountryGroup2, sizeof(g_u2CountryGroup2) / 2,
 		{
-			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, /* CH_SET_2G4_1_13 */
+			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, 
 
-			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, /* CH_SET_UNII_LOW_36_48 */
-			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, /* CH_SET_UNII_MID_52_64 */
-			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  12,  FALSE }, /* CH_SET_UNII_WW_100_144 */
-			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   5,  FALSE }, /* CH_SET_UNII_UPPER_149_165 */
+			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, 
+			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, 
+			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  12,  FALSE }, 
+			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   5,  FALSE }, 
 			{   0, BAND_NULL,           0,   0,   0,  FALSE }
 		}
 	},
 	{
 		(PUINT_16) g_u2CountryGroup3, sizeof(g_u2CountryGroup3) / 2,
 		{
-			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, /* CH_SET_2G4_1_13 */
+			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, 
 
-			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, /* CH_SET_UNII_LOW_36_48 */
-			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, /* CH_SET_UNII_MID_52_64 */
-			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  12,  FALSE }, /* CH_SET_UNII_WW_100_144 */
-			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   4,  FALSE }, /* CH_SET_UNII_UPPER_149_161 */
+			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, 
+			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, 
+			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  12,  FALSE }, 
+			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   4,  FALSE }, 
 			{   0, BAND_NULL,           0,   0,   0,  FALSE }
 		}
 	},
 	{
 		(PUINT_16) g_u2CountryGroup4, sizeof(g_u2CountryGroup4) / 2,
 		{
-			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, /* CH_SET_2G4_1_13 */
+			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, 
 
-			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, /* CH_SET_UNII_LOW_36_48 */
-			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, /* CH_SET_UNII_MID_52_64 */
-			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  12,  FALSE }, /* CH_SET_UNII_WW_100_144 */
-			{ 125, BAND_NULL,           0,   0,   0,  FALSE }, /* CH_SET_UNII_UPPER_NA */
+			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, 
+			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, 
+			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  12,  FALSE }, 
+			{ 125, BAND_NULL,           0,   0,   0,  FALSE }, 
 			{   0, BAND_NULL,           0,   0,   0,  FALSE }
 		}
 	},
 	{
 		(PUINT_16) g_u2CountryGroup5, sizeof(g_u2CountryGroup5) / 2,
 		{
-			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, /* CH_SET_2G4_1_13 */
+			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, 
 
-			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, /* CH_SET_UNII_LOW_36_48 */
-			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, /* CH_SET_UNII_MID_52_64 */
-			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  11,  FALSE }, /* CH_SET_UNII_WW_100_140 */
-			{ 125, BAND_NULL,           0,   0,   0,  FALSE }, /* CH_SET_UNII_UPPER_NA */
+			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, 
+			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, 
+			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  11,  FALSE }, 
+			{ 125, BAND_NULL,           0,   0,   0,  FALSE }, 
 			{   0, BAND_NULL,           0,   0,   0,  FALSE }
 		}
 	},
 	{
 		(PUINT_16) g_u2CountryGroup6, sizeof(g_u2CountryGroup6) / 2,
 		{
-			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, /* CH_SET_2G4_1_13 */
-			{  82, BAND_2G4, CHNL_SPAN_5,   14,   1,  FALSE }, /* CH_SET_2G4_14_14 */
-			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, /* CH_SET_UNII_LOW_36_48 */
-			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, /* CH_SET_UNII_MID_52_64 */
-			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  11,  FALSE }, /* CH_SET_UNII_WW_100_140 */
-			{ 125, BAND_NULL,           0,   0,   0,  FALSE }, /* CH_SET_UNII_UPPER_NA*/
+			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, 
+			{  82, BAND_2G4, CHNL_SPAN_5,   14,   1,  FALSE }, 
+			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, 
+			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, 
+			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  11,  FALSE }, 
+			{ 125, BAND_NULL,           0,   0,   0,  FALSE }, 
 		}
 	},
 	{
 		(PUINT_16) g_u2CountryGroup7, sizeof(g_u2CountryGroup7) / 2,
 		{
-			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, /* CH_SET_2G4_1_13 */
+			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, 
 
-			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, /* CH_SET_UNII_LOW_36_48 */
-			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, /* CH_SET_UNII_MID_52_64 */
-			{ 121, BAND_NULL,           0,   0,   0,  FALSE }, /* CH_SET_UNII_WW_NA*/
-			{ 125, BAND_NULL,           0,   0,   0,  FALSE }, /* CH_SET_UNII_UPPER_NA*/
+			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, 
+			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, 
+			{ 121, BAND_NULL,           0,   0,   0,  FALSE }, 
+			{ 125, BAND_NULL,           0,   0,   0,  FALSE }, 
 			{   0, BAND_NULL,           0,   0,   0,  FALSE }
 		}
 	},
 	{
 		(PUINT_16) g_u2CountryGroup8, sizeof(g_u2CountryGroup8) / 2,
 		{
-			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, /* CH_SET_2G4_1_13 */
+			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, 
 
-			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, /* CH_SET_UNII_LOW_36_48 */
-			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, /* CH_SET_UNII_MID_52_64 */
-			{ 121, BAND_NULL,           0,   0,   0,  FALSE }, /* CH_SET_UNII_WW_NA*/
-			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   4,  FALSE }, /* CH_SET_UNII_UPPER_149_161*/
+			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, 
+			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, 
+			{ 121, BAND_NULL,           0,   0,   0,  FALSE }, 
+			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   4,  FALSE }, 
 			{   0, BAND_NULL,           0,   0,   0,  FALSE }
 		}
 	},
 	{
 		(PUINT_16) g_u2CountryGroup9, sizeof(g_u2CountryGroup9) / 2,
 		{
-			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, /* CH_SET_2G4_1_13 */
+			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, 
 
-			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, /* CH_SET_UNII_LOW_36_48 */
-			{ 118, BAND_NULL,           0,   0,   0,  FALSE }, /* CH_SET_UNII_MID_NA*/
-			{ 121, BAND_NULL,           0,   0,   0,  FALSE }, /* CH_SET_UNII_WW_NA*/
-			{ 125, BAND_NULL,           0,   0,   0,  FALSE }, /* CH_SET_UNII_UPPER_NA*/
+			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, 
+			{ 118, BAND_NULL,           0,   0,   0,  FALSE }, 
+			{ 121, BAND_NULL,           0,   0,   0,  FALSE }, 
+			{ 125, BAND_NULL,           0,   0,   0,  FALSE }, 
 			{   0, BAND_NULL,           0,   0,   0,  FALSE }
 		}
 	},
 	{
 		(PUINT_16) g_u2CountryGroup10, sizeof(g_u2CountryGroup10) / 2,
 		{
-			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, /* CH_SET_2G4_1_13 */
+			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, 
 
-			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, /* CH_SET_UNII_LOW_36_48 */
-			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, /* CH_SET_UNII_MID_52_64 */
-			{ 121, BAND_NULL,           0,   0,   0,  FALSE }, /* CH_SET_UNII_WW_NA */
-			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   5,  FALSE }, /* CH_SET_UNII_UPPER_149_165 */
+			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, 
+			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, 
+			{ 121, BAND_NULL,           0,   0,   0,  FALSE }, 
+			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   5,  FALSE }, 
 			{   0, BAND_NULL,           0,   0,   0,  FALSE }
 		}
 	},
 	{
 		(PUINT_16) g_u2CountryGroup11, sizeof(g_u2CountryGroup11) / 2,
 		{
-			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, /* CH_SET_2G4_1_13 */
+			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, 
 
-			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, /* CH_SET_UNII_LOW_36_48 */
-			{ 118, BAND_NULL,           0,   0,   0,  FALSE }, /* CH_SET_UNII_MID_NA */
-			{ 121, BAND_NULL,           0,   0,   0,  FALSE }, /* CH_SET_UNII_WW_NA */
-			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   5,  FALSE }, /* CH_SET_UNII_UPPER_149_165 */
+			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, 
+			{ 118, BAND_NULL,           0,   0,   0,  FALSE }, 
+			{ 121, BAND_NULL,           0,   0,   0,  FALSE }, 
+			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   5,  FALSE }, 
 			{   0, BAND_NULL,           0,   0,   0,  FALSE }
 		}
 	},
 	{
 		(PUINT_16) g_u2CountryGroup12, sizeof(g_u2CountryGroup12) / 2,
 		{
-			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, /* CH_SET_2G4_1_13 */
+			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, 
 
-			{ 115, BAND_NULL,           0,   0,   0,  FALSE }, /* CH_SET_UNII_LOW_NA */
-			{ 118, BAND_NULL,           0,   0,   0,  FALSE }, /* CH_SET_UNII_MID_NA */
-			{ 121, BAND_NULL,           0,   0,   0,  FALSE }, /* CH_SET_UNII_WW_NA */
-			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   5,  FALSE }, /* CH_SET_UNII_UPPER_149_165 */
+			{ 115, BAND_NULL,           0,   0,   0,  FALSE }, 
+			{ 118, BAND_NULL,           0,   0,   0,  FALSE }, 
+			{ 121, BAND_NULL,           0,   0,   0,  FALSE }, 
+			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   5,  FALSE }, 
 			{   0, BAND_NULL,           0,   0,   0,  FALSE }
 		}
 	},
 	{
 		(PUINT_16) g_u2CountryGroup13, sizeof(g_u2CountryGroup13) / 2,
 		{
-			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, /* CH_SET_2G4_1_13 */
+			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, 
 
-			{ 115, BAND_NULL,           0,   0,   0,  FALSE }, /* CH_SET_UNII_LOW_NA */
-			{ 118, BAND_NULL,           0,   0,   0,  FALSE }, /* CH_SET_UNII_MID_NA */
-			{ 121, BAND_NULL,           0,   0,   0,  FALSE }, /* CH_SET_UNII_WW_NA */
-			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   4,  FALSE }, /* CH_SET_UNII_UPPER_149_161 */
+			{ 115, BAND_NULL,           0,   0,   0,  FALSE }, 
+			{ 118, BAND_NULL,           0,   0,   0,  FALSE }, 
+			{ 121, BAND_NULL,           0,   0,   0,  FALSE }, 
+			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   4,  FALSE }, 
 			{   0, BAND_NULL,           0,   0,   0,  FALSE }
 		}
 	},
 	{
 		(PUINT_16) g_u2CountryGroup14, sizeof(g_u2CountryGroup14) / 2,
 		{
-			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, /* CH_SET_2G4_1_13 */
+			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, 
 
-			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, /* CH_SET_UNII_LOW_36_48 */
-			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, /* CH_SET_UNII_MID_52_64 */
-			{ 121, BAND_5G,  CHNL_SPAN_20, 100,   8,  FALSE }, /* CH_SET_UNII_WW_100_128 */
-			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   4,  FALSE }, /* CH_SET_UNII_UPPER_149_161 */
+			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, 
+			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, 
+			{ 121, BAND_5G,  CHNL_SPAN_20, 100,   8,  FALSE }, 
+			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   4,  FALSE }, 
 			{   0, BAND_NULL,           0,   0,   0,  FALSE }
 		}
 	},
 	{
 		(PUINT_16) g_u2CountryGroup15, sizeof(g_u2CountryGroup15) / 2,
 		{
-			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, /* CH_SET_2G4_1_13 */
+			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, 
 
-			{ 115, BAND_NULL,           0,   0,   0,  FALSE }, /* CH_SET_UNII_LOW_36_48 */
-			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, /* CH_SET_UNII_MID_52_64 */
-			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  11,  FALSE }, /* CH_SET_UNII_WW_100_140 */
-			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   5,  FALSE }, /* CH_SET_UNII_UPPER_149_165 */
+			{ 115, BAND_NULL,           0,   0,   0,  FALSE }, 
+			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, 
+			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  11,  FALSE }, 
+			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   5,  FALSE }, 
 			{   0, BAND_NULL,           0,   0,   0,  FALSE }
 		}
 	},
 	{
 		(PUINT_16) g_u2CountryGroup16, sizeof(g_u2CountryGroup16) / 2,
 		{
-			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, /* CH_SET_2G4_1_13 */
+			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, 
 
-			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, /* CH_SET_UNII_LOW_36_48 */
-			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, /* CH_SET_UNII_MID_52_64 */
-			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  11,  FALSE }, /* CH_SET_UNII_WW_100_140 */
-			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   5,  FALSE }, /* CH_SET_UNII_UPPER_149_165 */
+			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, 
+			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, 
+			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  11,  FALSE }, 
+			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   5,  FALSE }, 
 			{   0, BAND_NULL,           0,   0,   0,  FALSE }
 		}
 	},
 	{
 		(PUINT_16) g_u2CountryGroup17, sizeof(g_u2CountryGroup17) / 2,
 		{
-			{  81, BAND_2G4, CHNL_SPAN_5,    1,  11,  FALSE }, /* CH_SET_2G4_1_11 */
+			{  81, BAND_2G4, CHNL_SPAN_5,    1,  11,  FALSE }, 
 
-			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, /* CH_SET_UNII_LOW_36_48 */
-			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, /* CH_SET_UNII_MID_52_64 */
-			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  11,  FALSE }, /* CH_SET_UNII_WW_100_140 */
-			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   5,  FALSE }, /* CH_SET_UNII_UPPER_149_165 */
+			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, 
+			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, 
+			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  11,  FALSE }, 
+			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   5,  FALSE }, 
 			{   0, BAND_NULL,           0,   0,   0,  FALSE }
 		}
 	},
 	{
 		(PUINT_16) g_u2CountryGroup18, sizeof(g_u2CountryGroup18) / 2,
 		{
-			{  81, BAND_2G4, CHNL_SPAN_5,    1,  11,  FALSE }, /* CH_SET_2G4_1_11 */
+			{  81, BAND_2G4, CHNL_SPAN_5,    1,  11,  FALSE }, 
 
-			{ 115, BAND_NULL,           0,   0,   0,  FALSE }, /* CH_SET_UNII_LOW_36_48 */
-			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, /* CH_SET_UNII_MID_52_64 */
-			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  11,  FALSE }, /* CH_SET_UNII_WW_100_140 */
-			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   5,  FALSE }, /* CH_SET_UNII_UPPER_149_165 */
+			{ 115, BAND_NULL,           0,   0,   0,  FALSE }, 
+			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, 
+			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  11,  FALSE }, 
+			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   5,  FALSE }, 
 			{   0, BAND_NULL,           0,   0,   0,  FALSE }
 		}
 	},
 	{
 		(PUINT_16) g_u2CountryGroup19, sizeof(g_u2CountryGroup19) / 2,
 		{
-			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, /* CH_SET_2G4_1_13 */
+			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, 
 
-			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, /* CH_SET_UNII_LOW_36_48 */
-			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, /* CH_SET_UNII_MID_52_64 */
-			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  12,  FALSE }, /* CH_SET_UNII_WW_100_144 */
-			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   5,  FALSE }, /* CH_SET_UNII_UPPER_149_165 */
+			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, 
+			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, 
+			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  12,  FALSE }, 
+			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   5,  FALSE }, 
 			{   0, BAND_NULL,           0,   0,   0,  FALSE }
 		}
 	},
 	{
-		/* Note: The final one is for Europe union now. */
+		
 		(PUINT_16) g_u2CountryGroup20, sizeof(g_u2CountryGroup20) / 2,
 		{
-			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, /* CH_SET_2G4_1_13 */
+			{  81, BAND_2G4, CHNL_SPAN_5,    1,  13,  FALSE }, 
 
-			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, /* CH_SET_UNII_LOW_36_48 */
-			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, /* CH_SET_UNII_MID_52_64 */
-			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  12,  FALSE }, /* CH_SET_UNII_WW_100_144 */
-			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   7,  FALSE }, /* CH_SET_UNII_UPPER_149_173 */
+			{ 115, BAND_5G,  CHNL_SPAN_20,  36,   4,  FALSE }, 
+			{ 118, BAND_5G,  CHNL_SPAN_20,  52,   4,  FALSE }, 
+			{ 121, BAND_5G,  CHNL_SPAN_20, 100,  12,  FALSE }, 
+			{ 125, BAND_5G,  CHNL_SPAN_20, 149,   7,  FALSE }, 
 			{   0, BAND_NULL,           0,   0,   0,  FALSE }
 		}
 	}
@@ -491,68 +367,66 @@ DOMAIN_INFO_ENTRY arSupportedRegDomains[] = {
 
 #if 0
 COUNTRY_CH_SET_T arCountryChSets[] = {
-	/* idx=0: US, Bahamas, Barbados, Bolivia(Voluntary), Dominica (the Commonwealth of Dominica),
-	   The Dominican Republic, Haiti */
 	{CH_SET_2G4_1_11, CH_SET_UNII_LOW_36_48, CH_SET_UNII_MID_52_64,
 	CH_SET_UNII_WW_100_140, CH_SET_UNII_UPPER_149_165}
 	,
-	/* idx=1: Brazil, Ecuador, Hong Kong, Mexico, Peru */
+	
 	{CH_SET_2G4_1_13, CH_SET_UNII_LOW_36_48, CH_SET_UNII_MID_52_64,
 	CH_SET_UNII_WW_100_140, CH_SET_UNII_UPPER_149_165}
 	,
-	/* idx=2: JP1, Colombia(Voluntary), Paraguay */
+	
 	{CH_SET_2G4_1_13, CH_SET_UNII_LOW_36_48, CH_SET_UNII_MID_52_64,
 	CH_SET_UNII_WW_100_140, CH_SET_UNII_UPPER_NA}
 	,
-	/* idx=3: JP2 */
+	
 	{CH_SET_2G4_1_14, CH_SET_UNII_LOW_36_48, CH_SET_UNII_MID_52_64,
 	CH_SET_UNII_WW_100_140, CH_SET_UNII_UPPER_NA}
 	,
-	/* idx=4: CN, Uruguay, Morocco */
+	
 	{CH_SET_2G4_1_13, CH_SET_UNII_LOW_NA, CH_SET_UNII_MID_NA,
 	CH_SET_UNII_WW_NA, CH_SET_UNII_UPPER_149_165}
 	,
-	/* idx=5: Argentina */
+	
 	{CH_SET_2G4_1_13, CH_SET_UNII_LOW_NA, CH_SET_UNII_MID_52_64,
 	CH_SET_UNII_WW_NA, CH_SET_UNII_UPPER_149_165}
 	,
-	/* idx=6: Australia, New Zealand */
+	
 	{CH_SET_2G4_1_11, CH_SET_UNII_LOW_36_48, CH_SET_UNII_MID_52_64,
 	CH_SET_UNII_WW_100_140, CH_SET_UNII_UPPER_149_161}
 	,
-	/* idx=7: Russia */
+	
 	{CH_SET_2G4_1_13, CH_SET_UNII_LOW_36_48, CH_SET_UNII_MID_52_64,
 	 CH_SET_UNII_WW_100_140, CH_SET_UNII_UPPER_149_161}
 	,
-	/* idx=8: Indonesia */
+	
 	{CH_SET_2G4_1_13, CH_SET_UNII_LOW_NA, CH_SET_UNII_MID_NA,
 	CH_SET_UNII_WW_NA, CH_SET_UNII_UPPER_149_161}
 	,
-	/* idx=9: Canada */
+	
 	{CH_SET_2G4_1_11, CH_SET_UNII_LOW_36_48, CH_SET_UNII_MID_52_64,
 	CH_SET_UNII_WW_100_116_132_140, CH_SET_UNII_UPPER_149_165}
 	,
-	/* idx=10: Chile, India, Saudi Arabia, Singapore */
+	
 	{CH_SET_2G4_1_13, CH_SET_UNII_LOW_36_48, CH_SET_UNII_MID_52_64,
 	CH_SET_UNII_WW_NA, CH_SET_UNII_UPPER_149_165}
 	,
-	/* idx=11: Israel, Ukraine */
+	
 	{CH_SET_2G4_1_13, CH_SET_UNII_LOW_36_48, CH_SET_UNII_MID_52_64,
 	CH_SET_UNII_WW_NA, CH_SET_UNII_UPPER_NA}
 	,
-	/* idx=12: Jordan, Kuwait */
+	
 	{CH_SET_2G4_1_13, CH_SET_UNII_LOW_36_48, CH_SET_UNII_MID_NA,
 	CH_SET_UNII_WW_NA, CH_SET_UNII_UPPER_NA}
 	,
-	/* idx=13: South Korea */
+	
 	{CH_SET_2G4_1_13, CH_SET_UNII_LOW_36_48, CH_SET_UNII_MID_52_64,
 	CH_SET_UNII_WW_100_128, CH_SET_UNII_UPPER_149_165}
 	,
-	/* idx=14: Taiwan */
+	
 	{CH_SET_2G4_1_11, CH_SET_UNII_LOW_NA, CH_SET_UNII_MID_52_64,
 	CH_SET_UNII_WW_100_140, CH_SET_UNII_UPPER_149_165}
 	,
-	/* idx=15: EU all countries */
+	
 	{CH_SET_2G4_1_13, CH_SET_UNII_LOW_36_48, CH_SET_UNII_MID_52_64,
 	CH_SET_UNII_WW_100_140, CH_SET_UNII_UPPER_149_173}
 };
@@ -563,52 +437,27 @@ COUNTRY_CH_SET_T arCountryChSets[] = {
 #include "rlm_txpwr_init.h"
 
 
-#if CFG_SUPPORT_PWR_LIMIT_COUNTRY 
+
 
 SUBBAND_CHANNEL_T g_rRlmSubBand[] = {
 
-	{BAND_2G4_LOWER_BOUND, 	BAND_2G4_UPPER_BOUND, 	1,	0},   //2.4G
-	{UNII1_LOWER_BOUND, 	UNII1_UPPER_BOUND, 		2,	0},   //ch36,38,40,..,48 
-	{UNII2A_LOWER_BOUND, 	UNII2A_UPPER_BOUND, 	2,	0},   //ch52,54,56,..,64
-	{UNII2C_LOWER_BOUND, 	UNII2C_UPPER_BOUND, 	2,	0},   //ch100,102,104,...,144
-	{UNII3_LOWER_BOUND, 	UNII3_UPPER_BOUND,		2, 	0} 	  //ch149,151,153,....,173
+	{BAND_2G4_LOWER_BOUND, 	BAND_2G4_UPPER_BOUND, 	1,	0},   
+	{UNII1_LOWER_BOUND, 	UNII1_UPPER_BOUND, 		2,	0},   
+	{UNII2A_LOWER_BOUND, 	UNII2A_UPPER_BOUND, 	2,	0},   
+	{UNII2C_LOWER_BOUND, 	UNII2C_UPPER_BOUND, 	2,	0},   
+	{UNII3_LOWER_BOUND, 	UNII3_UPPER_BOUND,		2, 	0} 	  
 	
 };
 
-#endif
 
-/*******************************************************************************
-*                           P R I V A T E   D A T A
-********************************************************************************
-*/
 
-/*******************************************************************************
-*                                 M A C R O S
-********************************************************************************
-*/
 
-/*******************************************************************************
-*                   F U N C T I O N   D E C L A R A T I O N S
-********************************************************************************
-*/
 
-/*******************************************************************************
-*                              F U N C T I O N S
-********************************************************************************
-*/
 
-/*----------------------------------------------------------------------------*/
-/*!
-* \brief
-*
-* \param[in/out]
-*
-* \return none
-*/
-/*----------------------------------------------------------------------------*/
+
 P_DOMAIN_INFO_ENTRY rlmDomainGetDomainInfo(P_ADAPTER_T prAdapter)
 {
-#define REG_DOMAIN_DEF_IDX          20  /* EU (Europe Union) */
+#define REG_DOMAIN_DEF_IDX          20  
 #define REG_DOMAIN_GROUP_NUM \
 	(sizeof(arSupportedRegDomains) / sizeof(DOMAIN_INFO_ENTRY))
 
@@ -640,9 +489,6 @@ P_DOMAIN_INFO_ENTRY rlmDomainGetDomainInfo(P_ADAPTER_T prAdapter)
 
 	u2TargetCountryCode = prAdapter->rWifiVar.rConnSettings.u2CountryCode;
 
-	/* If no matched country code, the final one will be used
-	 * The final one is for Europe union now.
-	 */
 	for (i = 0; i < REG_DOMAIN_GROUP_NUM; i++) {
 		prDomainInfo = &arSupportedRegDomains[i];
 
@@ -655,7 +501,7 @@ P_DOMAIN_INFO_ENTRY rlmDomainGetDomainInfo(P_ADAPTER_T prAdapter)
 			}
 		}
 		if (j < prDomainInfo->u4CountryNum) {
-			break;	/* Found */
+			break;	
 		}
 	}
 
@@ -671,16 +517,6 @@ L_set_domain_info:
 	return prDomainInfo;
 }
 
-/*----------------------------------------------------------------------------*/
-/*!
-* \brief
-*
-* \param[in/out] The input variable pointed by pucNumOfChannel is the max
-*                arrary size. The return value indciates meaning list size.
-*
-* \return none
-*/
-/*----------------------------------------------------------------------------*/
 VOID
 rlmDomainGetChnlList(P_ADAPTER_T prAdapter,
 		     ENUM_BAND_T eSpecificBand,
@@ -695,7 +531,7 @@ rlmDomainGetChnlList(P_ADAPTER_T prAdapter,
 	ASSERT(paucChannelList);
 	ASSERT(pucNumOfChannel);
 
-	/* If no matched country code, the final one will be used */
+	
 	prDomainInfo = rlmDomainGetDomainInfo(prAdapter);
 	ASSERT(prDomainInfo);
 
@@ -724,15 +560,6 @@ rlmDomainGetChnlList(P_ADAPTER_T prAdapter,
 	*pucNumOfChannel = ucNum;
 }
 
-/*----------------------------------------------------------------------------*/
-/*!
-* @brief
-*
-* @param[in]
-*
-* @return (none)
-*/
-/*----------------------------------------------------------------------------*/
 VOID rlmDomainSendCmd(P_ADAPTER_T prAdapter, BOOLEAN fgIsOid)
 {
 	P_DOMAIN_INFO_ENTRY prDomainInfo;
@@ -747,7 +574,7 @@ VOID rlmDomainSendCmd(P_ADAPTER_T prAdapter, BOOLEAN fgIsOid)
 	prCmd = cnmMemAlloc(prAdapter, RAM_TYPE_BUF, sizeof(CMD_SET_DOMAIN_INFO_T));
 	ASSERT(prCmd);
 
-	/* To do: exception handle */
+	
 	if (!prCmd) {
 		DBGLOG(RLM, ERROR, ("Domain: no buf to send cmd\n"));
 		return;
@@ -772,21 +599,21 @@ VOID rlmDomainSendCmd(P_ADAPTER_T prAdapter, BOOLEAN fgIsOid)
 		}
 	}
 
-	/* Update domain info to chip */
-	rStatus = wlanSendSetQueryCmd(prAdapter,	/* prAdapter */
-				      CMD_ID_SET_DOMAIN_INFO,	/* ucCID */
-				      TRUE,	/* fgSetQuery */
-				      FALSE,	/* fgNeedResp */
-				      fgIsOid,	/* fgIsOid */
-				      NULL,	/* pfCmdDoneHandler */
-				      NULL,	/* pfCmdTimeoutHandler */
-				      sizeof(CMD_SET_DOMAIN_INFO_T),	/* u4SetQueryInfoLen */
-				      (PUINT_8) prCmd,	/* pucInfoBuffer */
-				      NULL,	/* pvSetQueryBuffer */
-				      0	/* u4SetQueryBufferLen */
+	
+	rStatus = wlanSendSetQueryCmd(prAdapter,	
+				      CMD_ID_SET_DOMAIN_INFO,	
+				      TRUE,	
+				      FALSE,	
+				      fgIsOid,	
+				      NULL,	
+				      NULL,	
+				      sizeof(CMD_SET_DOMAIN_INFO_T),	
+				      (PUINT_8) prCmd,	
+				      NULL,	
+				      0	
 	    );
 
-	/* ASSERT(rStatus == WLAN_STATUS_PENDING); */
+	
 
 	cnmMemFree(prAdapter, prCmd);
 #if CFG_SUPPORT_PWR_LIMIT_COUNTRY
@@ -795,16 +622,6 @@ VOID rlmDomainSendCmd(P_ADAPTER_T prAdapter, BOOLEAN fgIsOid)
     
 }
 
-/*----------------------------------------------------------------------------*/
-/*!
-* \brief
-*
-* \param[in/out]
-*
-* \return TRUE  Legal channel
-*         FALSE Illegal channel for current regulatory domain
-*/
-/*----------------------------------------------------------------------------*/
 BOOLEAN rlmDomainIsLegalChannel(P_ADAPTER_T prAdapter, ENUM_BAND_T eBand, UINT_8 ucChannel)
 {
 	UINT_8 i, j;
@@ -836,39 +653,19 @@ BOOLEAN rlmDomainIsLegalChannel(P_ADAPTER_T prAdapter, ENUM_BAND_T eBand, UINT_8
 
 
 
-/*----------------------------------------------------------------------------*/
-/*!
-* \brief
-*
-* \param[in/out]
-*
-* \return none
-*/
-/*----------------------------------------------------------------------------*/
 
 
 UINT_32 rlmDomainSupOperatingClassIeFill(PUINT_8 pBuf)
 {
-	/*
-	   The Country element should only be included for Status Code 0 (Successful).
-	 */
 	UINT_32 u4IeLen;
 	UINT_8 aucClass[12] = { 0x01, 0x02, 0x03, 0x05, 0x16, 0x17, 0x19, 0x1b,
 		0x1c, 0x1e, 0x20, 0x21
 	};
 
 
-	/*
-	   The Supported Operating Classes element is used by a STA to advertise the
-	   operating classes that it is capable of operating with in this country.
-
-	   The Country element (see 8.4.2.10) allows a STA to configure its PHY and MAC
-	   for operation when the operating triplet of Operating Extension Identifier,
-	   Operating Class, and Coverage Class fields is present.
-	 */
 	SUP_OPERATING_CLASS_IE(pBuf)->ucId = ELEM_ID_SUP_OPERATING_CLASS;
 	SUP_OPERATING_CLASS_IE(pBuf)->ucLength = 1 + sizeof(aucClass);
-	SUP_OPERATING_CLASS_IE(pBuf)->ucCur = 0x0c;	/* 0x51 */
+	SUP_OPERATING_CLASS_IE(pBuf)->ucCur = 0x0c;	
 	kalMemCopy(SUP_OPERATING_CLASS_IE(pBuf)->ucSup, aucClass, sizeof(aucClass));
 	u4IeLen = (SUP_OPERATING_CLASS_IE(pBuf)->ucLength + 2);
 	pBuf += u4IeLen;
@@ -885,18 +682,191 @@ UINT_32 rlmDomainSupOperatingClassIeFill(PUINT_8 pBuf)
 
 	return u4IeLen;
 }
+BOOLEAN
+rlmDomainCheckChannelEntryValid(
+    P_ADAPTER_T     prAdapter,
+    UINT_8          ucCentralCh
+    )
+{
+    BOOLEAN         fgValid = FALSE;
+    UINT_8          ucTemp = 0;
+    UINT_8          i;
+	
+
+	for (i = POWER_LIMIT_2G4; i < POWER_LIMIT_SUBAND_NUM; i++) {
+		if ((ucCentralCh >= g_rRlmSubBand[i].ucStartCh) && (ucCentralCh <= g_rRlmSubBand[i].ucEndCh)) {
+        	ucTemp = (ucCentralCh - g_rRlmSubBand[i].ucStartCh) % g_rRlmSubBand[i].ucInterval ;
+		}
+	}
+
+
+#if 0
+    
+	if (ucCentralCh >= BAND_2G4_LOWER_BOUND && ucCentralCh <= BAND_2G4_UPPER_BOUND) {
+		ucTemp = 0; 
+	}
+	
+	else if (ucCentralCh >= UNII1_LOWER_BOUND && ucCentralCh <= UNII1_UPPER_BOUND) {
+		ucTemp = (ucCentralCh - UNII1_LOWER_BOUND) % 2;
+	}
+	
+	else if (ucCentralCh >= UNII2A_LOWER_BOUND && ucCentralCh <= UNII2A_UPPER_BOUND) {
+		ucTemp = (ucCentralCh - UNII2A_LOWER_BOUND) % 2;
+	}
+	
+	else if (ucCentralCh >= UNII2C_LOWER_BOUND && ucCentralCh <= UNII2C_UPPER_BOUND) {
+		ucTemp = (ucCentralCh - UNII2C_LOWER_BOUND) % 2;
+	}
+	
+	else if (ucCentralCh >= UNII3_LOWER_BOUND && ucCentralCh <= UNII3_UPPER_BOUND) {
+		ucTemp = (ucCentralCh - UNII3_LOWER_BOUND) % 2; 
+	}
+
+#endif
+	if (ucTemp == 0) {
+		fgValid = TRUE;
+	}
+	return fgValid;
+ 
+}
+
+UINT_8
+rlmDomainGetCenterChannel (
+    ENUM_BAND_T         eBand,
+    UINT_8              ucPriChannel,
+    ENUM_CHNL_EXT_T     eExtend
+    )
+{
+    UINT_8      ucCenterChannel;
+
+    if (eExtend == CHNL_EXT_SCA) {
+ 
+        ucCenterChannel = ucPriChannel + 2;
+    }
+    else if (eExtend == CHNL_EXT_SCB) {
+  
+        ucCenterChannel = ucPriChannel - 2;
+    }
+    else {
+ 
+        ucCenterChannel = ucPriChannel;
+    }
+
+    return ucCenterChannel;
+}
+
+BOOLEAN
+rlmDomainIsValidRfSetting (
+	P_ADAPTER_T 	     prAdapter,
+    ENUM_BAND_T          eBand,
+    UINT_8               ucPriChannel,
+    ENUM_CHNL_EXT_T      eExtend,
+    ENUM_CHANNEL_WIDTH_T eChannelWidth,
+    UINT_8               ucChannelS1,
+    UINT_8               ucChannelS2
+    )
+{
+	UINT_8  ucCenterChannel;
+	UINT_8  ucUpperChannel;
+	UINT_8  ucLowerChannel;
+	BOOLEAN fgValidChannel = TRUE;
+	BOOLEAN fgUpperChannel = TRUE;
+	BOOLEAN fgLowerChannel = TRUE;
+	BOOLEAN fgValidBW      = TRUE;
+	BOOLEAN fgValidRfSetting = TRUE;
+	UINT_32 u4PrimaryOffset;
+	
+	
+	if(eChannelWidth == CW_20_40MHZ) {
+		
+		ucCenterChannel = rlmDomainGetCenterChannel(eBand, ucPriChannel, eExtend);
+
+		
+		fgValidChannel = rlmDomainCheckChannelEntryValid(prAdapter, ucCenterChannel);
+		if(fgValidChannel == FALSE) {
+			DBGLOG(RLM, WARN, ("Rf: CentralCh=%d\n", ucCenterChannel));
+		}
+
+		
+		switch(eExtend) {
+			case CHNL_EXT_SCA:
+				ucUpperChannel = ucPriChannel + 4;
+				ucLowerChannel = ucPriChannel;
+				break;
+			case CHNL_EXT_SCB:
+				ucUpperChannel = ucPriChannel;
+				ucLowerChannel = ucPriChannel - 4;
+				break;
+			default:
+				ucUpperChannel = ucPriChannel;
+				ucLowerChannel = ucPriChannel;
+				break;
+		}
+		
+		fgUpperChannel = rlmDomainCheckChannelEntryValid(prAdapter, ucUpperChannel);
+		if(fgUpperChannel == FALSE) {
+			DBGLOG(RLM, WARN, ("Rf: UpperCh=%d\n", ucUpperChannel));
+		}
+		
+		fgLowerChannel = rlmDomainCheckChannelEntryValid(prAdapter, ucLowerChannel);
+		if(fgLowerChannel == FALSE) {
+			DBGLOG(RLM, WARN, ("Rf: LowerCh=%d\n", ucLowerChannel));
+		}
+
+	}
+	else if(eChannelWidth == CW_80MHZ){
+		ucCenterChannel = ucChannelS1;
+
+		
+		fgValidChannel = rlmDomainCheckChannelEntryValid(prAdapter, ucCenterChannel);
+		if(fgValidChannel == FALSE) {
+			DBGLOG(RLM, WARN, ("Rf: CentralCh=%d\n", ucCenterChannel));
+		}
+	}
+	else if(eChannelWidth == CW_160MHZ){
+		ucCenterChannel = ucChannelS2;
+		
+		
+		
+	}
+
+    
+	if(eBand == BAND_2G4) {
+		if(eChannelWidth != CW_20_40MHZ) {
+			fgValidBW = FALSE;
+			DBGLOG(RLM, WARN, ("Rf: B=%d, W=%d\n", eBand, eChannelWidth));
+		}
+	}
+	else {
+		if(eChannelWidth == CW_80MHZ) {
+			u4PrimaryOffset = CAL_CH_OFFSET_80M(ucPriChannel, ucCenterChannel);
+			if(u4PrimaryOffset > 4) {
+				fgValidBW = FALSE;
+				DBGLOG(RLM, WARN, ("Rf: PriOffSet=%d, W=%d\n", 
+				u4PrimaryOffset, eChannelWidth));
+			}
+		} 
+		else if (eChannelWidth == CW_160MHZ) {
+			u4PrimaryOffset = CAL_CH_OFFSET_160M(ucPriChannel, ucCenterChannel);
+			if(u4PrimaryOffset > 8) {
+				fgValidBW = FALSE;
+				DBGLOG(RLM, WARN, ("Rf: PriOffSet=%d, W=%d\n", 
+				u4PrimaryOffset, eChannelWidth));
+			}
+		}
+	}
+
+	if((fgValidBW == FALSE) || (fgValidChannel == FALSE) || (fgUpperChannel == FALSE) || (fgLowerChannel == FALSE)) {
+		fgValidRfSetting = FALSE;
+	}
+
+	return fgValidRfSetting;
+			
+}
+
 
 #if CFG_SUPPORT_PWR_LIMIT_COUNTRY
 
-/*----------------------------------------------------------------------------*/
-/*!
-* @brief 
-*
-* @param[in]
-*
-* @return (fgValid) : 0 -> inValid, 1 -> Valid
-*/
-/*----------------------------------------------------------------------------*/
 BOOLEAN
 rlmDomainCheckPowerLimitValid (
 	P_ADAPTER_T     								prAdapter,
@@ -913,22 +883,13 @@ rlmDomainCheckPowerLimitValid (
 	for (i = 0; i < ucPwrLimitNum; i++, prPwrLimit++) {
        	if (*prPwrLimit > MAX_TX_POWER || *prPwrLimit < MIN_TX_POWER) {
 			fgValid = FALSE;
-			break; /*Find out Wrong Power limit*/
+			break; 
        	}
 	}
 	return fgValid;
 
 }
 
-/*----------------------------------------------------------------------------*/
-/*!
-* @brief 
-*
-* @param[in]
-*
-* @return (none) 
-*/
-/*----------------------------------------------------------------------------*/
 VOID
 rlmDomainCheckCountryPowerLimitTable (
 	P_ADAPTER_T     prAdapter
@@ -942,12 +903,12 @@ rlmDomainCheckCountryPowerLimitTable (
 	BOOLEAN                                 fgTableValid = TRUE;
 	
 
-	/*Configuration Table Check*/
+	
 	for (i = 0; i < sizeof(g_rRlmPowerLimitConfiguration)/sizeof(COUNTRY_POWER_LIMIT_TABLE_CONFIGURATION); i++) {
-            /*Table Country Code*/
+            
 			WLAN_GET_FIELD_BE16( &g_rRlmPowerLimitConfiguration[i].aucCountryCode[0], &u2CountryCodeTable); 
 
-			/*Repetition Entry Check*/
+			
 			for (j = i + 1; j <= sizeof(g_rRlmPowerLimitConfiguration)/sizeof(COUNTRY_POWER_LIMIT_TABLE_CONFIGURATION); j++) {
 				
 			     WLAN_GET_FIELD_BE16( &g_rRlmPowerLimitConfiguration[j].aucCountryCode[0], &u2CountryCodeCheck);
@@ -960,10 +921,10 @@ rlmDomainCheckCountryPowerLimitTable (
 				 }
 			}
 			
-			/*Channel Number Check*/
+			
 			fgChannelValid = rlmDomainCheckChannelEntryValid(prAdapter, g_rRlmPowerLimitConfiguration[i].ucCentralCh);
 
-			/*Power Limit Check*/
+			
 			fgPowerLimitValid = rlmDomainCheckPowerLimitValid(prAdapter, g_rRlmPowerLimitConfiguration[i], PWR_LIMIT_NUM);
 
 			if (fgChannelValid == FALSE || fgPowerLimitValid == FALSE) {
@@ -977,7 +938,7 @@ rlmDomainCheckCountryPowerLimitTable (
 			
 			if(u2CountryCodeTable == COUNTRY_CODE_NULL) {
 				DBGLOG(RLM, INFO, ("Domain: Full search down\n"));
-				break; /*End of country table entry*/
+				break; 
 			}
 			
 	}
@@ -986,7 +947,7 @@ rlmDomainCheckCountryPowerLimitTable (
 		DBGLOG(RLM, INFO, ("Domain: Configuration Table no Repetiton.\n"));
 	}
 
-	/*Configuration Table no error*/
+	
 	if (fgTableValid == TRUE ) {
 		prAdapter->fgIsPowerLimitTableValid = TRUE;
     }
@@ -994,7 +955,7 @@ rlmDomainCheckCountryPowerLimitTable (
 		prAdapter->fgIsPowerLimitTableValid = FALSE;
 	}
 
-	/*Default Table Check*/
+	
 	fgEntryRepetetion = FALSE;
 	for (i = 0; i < sizeof(g_rRlmPowerLimitDefault)/sizeof(COUNTRY_POWER_LIMIT_TABLE_DEFAULT); i++) {
 
@@ -1013,15 +974,6 @@ rlmDomainCheckCountryPowerLimitTable (
 	}
 }
 
-/*----------------------------------------------------------------------------*/
-/*!
-* @brief 
-*
-* @param[in]
-*
-* @return (u2TableIndex) : if  0xFFFF -> No Table Match
-*/
-/*----------------------------------------------------------------------------*/
 UINT_16
 rlmDomainPwrLimitDefaultTableDecision(
     P_ADAPTER_T     prAdapter,
@@ -1031,20 +983,20 @@ rlmDomainPwrLimitDefaultTableDecision(
 
     UINT_16                                 i;
     UINT_16                                 u2CountryCodeTable = COUNTRY_CODE_NULL;                         
-    UINT_16                                 u2TableIndex = POWER_LIMIT_TABLE_NULL; //No Table Match 
+    UINT_16                                 u2TableIndex = POWER_LIMIT_TABLE_NULL; 
 
-    /*Default Table Index*/
+    
     for (i = 0; i < sizeof(g_rRlmPowerLimitDefault)/sizeof(COUNTRY_POWER_LIMIT_TABLE_DEFAULT); i++) {
 
 		WLAN_GET_FIELD_BE16(&g_rRlmPowerLimitDefault[i].aucCountryCode[0], &u2CountryCodeTable); 
 			
         if(u2CountryCodeTable == u2CountryCode) {
            	u2TableIndex = i;
-           	break; /*match country code*/
+           	break; 
        	}
 		else if(u2CountryCodeTable == COUNTRY_CODE_NULL) {
             u2TableIndex = i;
-			break; /*find last one country- Default*/
+			break; 
 		}	
     }
 
@@ -1052,72 +1004,6 @@ rlmDomainPwrLimitDefaultTableDecision(
 	
     return u2TableIndex;
 }
-/*----------------------------------------------------------------------------*/
-/*!
-* @brief
-*
-* @param[in]
-*
-* @return (fgValid) : 0 -> inValid, 1 -> Valid
-*/
-/*----------------------------------------------------------------------------*/
-BOOLEAN
-rlmDomainCheckChannelEntryValid(
-    P_ADAPTER_T     prAdapter,
-    UINT_8          ucCentralCh
-    )
-{
-    BOOLEAN         fgValid = FALSE;
-	UINT_8          ucTemp = 0;
-    UINT_8          i;
-	/*Check Power limit table channel efficient or not*/
-
-	for (i = POWER_LIMIT_2G4; i < POWER_LIMIT_SUBAND_NUM; i++) {
-		if ((ucCentralCh >= g_rRlmSubBand[i].ucStartCh) && (ucCentralCh <= g_rRlmSubBand[i].ucEndCh)) {
-        	ucTemp = (ucCentralCh - g_rRlmSubBand[i].ucStartCh) % g_rRlmSubBand[i].ucInterval ;
-		}
-	}
-
-
-#if 0
-    /*2.4G, ex 1, 2, 3*/
-	if (ucCentralCh >= BAND_2G4_LOWER_BOUND && ucCentralCh <= BAND_2G4_UPPER_BOUND) {
-		ucTemp = 0; 
-	}
-	/*FCC- Spec : Band UNII-1, ex 36, 38, 40....*/
-	else if (ucCentralCh >= UNII1_LOWER_BOUND && ucCentralCh <= UNII1_UPPER_BOUND) {
-		ucTemp = (ucCentralCh - UNII1_LOWER_BOUND) % 2;
-	}
-	/*FCC- Spec : Band UNII-2A, ex 52, 54, 56....*/
-	else if (ucCentralCh >= UNII2A_LOWER_BOUND && ucCentralCh <= UNII2A_UPPER_BOUND) {
-		ucTemp = (ucCentralCh - UNII2A_LOWER_BOUND) % 2;
-	}
-	/*FCC- Spec : Band UNII-2C, ex 100, 102, 104....*/
-	else if (ucCentralCh >= UNII2C_LOWER_BOUND && ucCentralCh <= UNII2C_UPPER_BOUND) {
-		ucTemp = (ucCentralCh - UNII2C_LOWER_BOUND) % 2;
-	}
-	/*FCC- Spec : Band UNII-3, ex 149, 151, 153...*/
-	else if (ucCentralCh >= UNII3_LOWER_BOUND && ucCentralCh <= UNII3_UPPER_BOUND) {
-		ucTemp = (ucCentralCh - UNII3_LOWER_BOUND) % 2; 
-	}
-
-#endif
-	if (ucTemp == 0) {
-		fgValid = TRUE;
-	}
-
-	return fgValid;
- 
-}
-/*----------------------------------------------------------------------------*/
-/*!
-* @brief
-*
-* @param[in]
-*
-* @return (none) 
-*/
-/*----------------------------------------------------------------------------*/
 VOID
 rlmDomainBuildCmdByDefaultTable(
     P_CMD_SET_COUNTRY_CHANNEL_POWER_LIMIT_T prCmd,
@@ -1131,7 +1017,7 @@ rlmDomainBuildCmdByDefaultTable(
 	prCmdPwrLimit = &prCmd->rChannelPowerLimit[0];
 	prPwrLimitSubBand = &g_rRlmPowerLimitDefault[u2DefaultTableIndex];
 	
-	/*Build power limit cmd by default table information*/
+	
 	
 
    for (i = POWER_LIMIT_2G4; i < POWER_LIMIT_SUBAND_NUM; i++) {
@@ -1145,7 +1031,7 @@ rlmDomainBuildCmdByDefaultTable(
 
 				}
 				else {
-					// ex:    40MHz power limit(mW\MHz) = 20MHz power limit(mW\MHz) * 2 ---> 40MHz power limit(dBm) = 20MHz power limit(dBm) + 6;
+					
 					prCmdPwrLimit->ucCentralCh = k;
 					prCmdPwrLimit->cPwrLimitCCK = prPwrLimitSubBand->aucPwrLimitSubBand[i];
 					prCmdPwrLimit->cPwrLimit20  = prPwrLimitSubBand->aucPwrLimitSubBand[i];
@@ -1191,7 +1077,7 @@ rlmDomainBuildCmdByDefaultTable(
 		}
 		else {
             for (i = UNII1_LOWER_BOUND; i <= UNII1_UPPER_BOUND; i += 2) {
-                // ex:    40MHz power limit(mW\MHz) = 20MHz power limit(mW\MHz) * 2 ---> 40MHz power limit(dBm) = 20MHz power limit(dBm) + 6;
+                
 				prCmdPwrLimit->ucCentralCh = i;
 				prCmdPwrLimit->cPwrLimitCCK = g_rRlmPowerLimitDefault[u2DefaultTableIndex].cPwrLimitUnii1;
 				prCmdPwrLimit->cPwrLimit20  = g_rRlmPowerLimitDefault[u2DefaultTableIndex].cPwrLimitUnii1;
@@ -1231,15 +1117,6 @@ rlmDomainBuildCmdByDefaultTable(
 	}
 #endif
 }
-/*----------------------------------------------------------------------------*/
-/*!
-* @brief
-*
-* @param[in]
-*
-* @return (none)
-*/
-/*----------------------------------------------------------------------------*/
 VOID
 rlmDomainBuildCmdByConfigTable(
 	P_ADAPTER_T     prAdapter,
@@ -1253,7 +1130,7 @@ rlmDomainBuildCmdByConfigTable(
     
 	
 	
-	/*Build power limit cmd by configuration table information*/
+	
 
     
 	
@@ -1265,7 +1142,7 @@ rlmDomainBuildCmdByConfigTable(
 
         if (u2CountryCodeTable == COUNTRY_CODE_NULL) {
 		   DBGLOG(RLM, INFO, ("Domain: full search configuration table done.\n"));
-           break;/*end of configuration table*/
+           break;
         }
 		else if((u2CountryCodeTable == prCmd->u2CountryCode) && (fgChannelValid == TRUE)) {
 
@@ -1275,11 +1152,6 @@ rlmDomainBuildCmdByConfigTable(
             	for (k = 0; k < prCmd->ucNum; k++){
                   	if (prCmdPwrLimit->ucCentralCh == g_rRlmPowerLimitConfiguration[i].ucCentralCh) {
 						
-                        /*Cmd setting (Default table infromation) and Configuration table has repetition channel entry,
-                                          ex : Default table (ex: 2.4G, limit = 20dBm) --> ch1~14 limit =20dBm,
-                                          Configuration table (ex: ch1, limit = 22dBm) --> ch 1 = 22 dBm
-                                          Cmd final setting -->  ch1 = 22dBm, ch12~14 = 20dBm 
-                                          */
 						kalMemCopy(&prCmdPwrLimit->cPwrLimitCCK, &g_rRlmPowerLimitConfiguration[i].aucPwrLimit, PWR_LIMIT_NUM);
 						
 						DBGLOG(RLM, INFO, ("Domain: CC=%c%c,ConfigCh=%d,Limit=%d,%d,%d,%d,%d,Fg=%d\n",
@@ -1293,11 +1165,6 @@ rlmDomainBuildCmdByConfigTable(
 			   	}
 				if (k == prCmd->ucNum) {
 					
-					/*Full search cmd (Default table setting) no match channey,
-                                   ex : Default table (ex: 2.4G, limit = 20dBm) --> ch1~14 limit =20dBm,
-                                   Configuration table (ex: ch36, limit = 22dBm) --> ch 36 = 22 dBm
-                                   Cmd final setting -->  ch1~14 = 20dBm, ch36= 22dBm
-                                   */
                     kalMemCopy(&prCmdPwrLimit->cPwrLimitCCK, &g_rRlmPowerLimitConfiguration[i].aucPwrLimit, PWR_LIMIT_NUM);
 					prCmd->ucNum++;
 					
@@ -1310,11 +1177,6 @@ rlmDomainBuildCmdByConfigTable(
 		   	}
 		 	else {
 				
-				/*Default table power limit value are 63--> cmd table no channel entry
-                            ex : Default table (ex: 2.4G, limit = 63Bm) --> no channel entry in cmd,
-                            Configuration table (ex: ch36, limit = 22dBm) --> ch 36 = 22 dBm
-                            Cmd final setting -->   ch36= 22dBm
-                             */
                 prCmdPwrLimit->ucCentralCh = g_rRlmPowerLimitConfiguration[i].ucCentralCh;
 				kalMemCopy(&prCmdPwrLimit->cPwrLimitCCK, &g_rRlmPowerLimitConfiguration[i].aucPwrLimit, PWR_LIMIT_NUM);
 				prCmd->ucNum++;
@@ -1330,15 +1192,6 @@ rlmDomainBuildCmdByConfigTable(
 	}
 }
 
-/*----------------------------------------------------------------------------*/
-/*!
-* @brief
-*
-* @param[in]
-*
-* @return (none)
-*/
-/*----------------------------------------------------------------------------*/
 VOID
 rlmDomainSendPwrLimitCmd (
    P_ADAPTER_T     prAdapter
@@ -1350,7 +1203,7 @@ rlmDomainSendPwrLimitCmd (
 	UINT_16                                 u2DefaultTableIndex;
 	UINT_32                                 u4SetCmdTableMaxSize;
 	UINT_32                                 u4SetQueryInfoLen;
-	P_CMD_CHANNEL_POWER_LIMIT 				prCmdPwrLimit; // for print usage
+	P_CMD_CHANNEL_POWER_LIMIT 				prCmdPwrLimit; 
 
 	u4SetCmdTableMaxSize = sizeof(CMD_SET_COUNTRY_CHANNEL_POWER_LIMIT_T) + MAX_CMD_SUPPORT_CHANNEL_NUM * sizeof(CMD_CHANNEL_POWER_LIMIT);
 
@@ -1371,10 +1224,10 @@ rlmDomainSendPwrLimitCmd (
 		prCmd->ucNum = 0;
 		
 		if (prCmd->u2CountryCode != COUNTRY_CODE_NULL) {
-			/*Command - default table information */
+			
 			rlmDomainBuildCmdByDefaultTable(prCmd, u2DefaultTableIndex);
 
-        	/*Command - configuration table information*/
+        	
 			rlmDomainBuildCmdByConfigTable(prAdapter, prCmd);
 		}
 	}
@@ -1386,12 +1239,12 @@ rlmDomainSendPwrLimitCmd (
     prCmd = cnmMemAlloc(prAdapter, RAM_TYPE_BUF, u4SetCmdTableMaxSize);
     ASSERT(prCmd);
 
-    /* To do: exception handle */
+    
     if (!prCmd) {
         DBGLOG(RLM, ERROR, ("Domain: no buf to send cmd\n"));
         return;
     }
-    kalMemZero(prCmd, u4SetCmdTableMaxSize);//TODO memzero
+    kalMemZero(prCmd, u4SetCmdTableMaxSize);
 
 	if (u2TableIndex != POWER_LIMIT_TABLE_NULL && u2TableIndex < MAX_DEFAULT_TABLE_COUNTRY_NUM) {
 		
@@ -1404,10 +1257,10 @@ rlmDomainSendPwrLimitCmd (
 			
 			if(prChPwrLimit->ucCentralCh != ENDCH){
 	
-				/*Check Power limit table channel efficient or not*/
+				
 			    fgChannelValid = rlmDomainCheckChannelEntryValid(prAdapter,prChPwrLimit->ucCentralCh);
 
-				/*Cmd set up*/
+				
 			    if (fgChannelValid) {
                         kalMemCopy(prCmdPwrLimit, prChPwrLimit, sizeof(CMD_CHANNEL_POWER_LIMIT));
 						DBGLOG(RLM, INFO, ("Domain: ValidCh=%d,Limit=%d,%d,%d,%d,%d,Fg=%d\n",prCmdPwrLimit->ucCentralCh,
@@ -1424,7 +1277,7 @@ rlmDomainSendPwrLimitCmd (
 				prChPwrLimit++;
 			}
 			else {
-				/*End of the chanel entry*/
+				
             	break;
 			}
 		} ;
@@ -1450,27 +1303,27 @@ rlmDomainSendPwrLimitCmd (
 
 	u4SetQueryInfoLen = (sizeof(CMD_SET_COUNTRY_CHANNEL_POWER_LIMIT_T)+ (prCmd->ucNum)*sizeof(CMD_CHANNEL_POWER_LIMIT)); 
 
-    /* Update domain info to chip */
+    
 	if (prCmd->ucNum <= MAX_CMD_SUPPORT_CHANNEL_NUM) {
     	rStatus = wlanSendSetQueryCmd (
-                prAdapter,                                            /* prAdapter */
-                CMD_ID_SET_COUNTRY_POWER_LIMIT,                       /* ucCID */
-                TRUE,                                                 /* fgSetQuery */
-                FALSE,                                                /* fgNeedResp */
-                FALSE,                                                /* fgIsOid */
-                NULL,                                                 /* pfCmdDoneHandler*/
-                NULL,                                                 /* pfCmdTimeoutHandler */
-                u4SetQueryInfoLen,                                    /* u4SetQueryInfoLen */
-                (PUINT_8) prCmd,                                      /* pucInfoBuffer */
-                NULL,                                                 /* pvSetQueryBuffer */
-                0                                                     /* u4SetQueryBufferLen */
+                prAdapter,                                            
+                CMD_ID_SET_COUNTRY_POWER_LIMIT,                       
+                TRUE,                                                 
+                FALSE,                                                
+                FALSE,                                                
+                NULL,                                                 
+                NULL,                                                 
+                u4SetQueryInfoLen,                                    
+                (PUINT_8) prCmd,                                      
+                NULL,                                                 
+                0                                                     
                 );
 	}
 	else {
     	DBGLOG(RLM, INFO, ("Domain: illegal power limit table"));
 	}
 
-    //ASSERT(rStatus == WLAN_STATUS_PENDING);
+    
 
     cnmMemFree(prAdapter, prCmd);
 

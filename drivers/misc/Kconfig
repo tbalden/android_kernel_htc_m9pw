@@ -557,4 +557,5 @@ source "drivers/misc/mediatek/Kconfig"
 source "drivers/misc/htc/Kconfig"
 source "drivers/misc/fpr_CrucialTec/Kconfig"
 source "drivers/misc/fpr_Synaptics/Kconfig"
+source "drivers/misc/config/Kconfig"
 endmenu

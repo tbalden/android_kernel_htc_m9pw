@@ -33,6 +33,15 @@
 #define MMDVFS_GPU_LOADING_SAMPLE_DURATION_IN_MS	100
 #define MMDVFS_GPU_LOADING_THRESHOLD	18
 
+#if defined(CONFIG_MTK_VCORE10_FEATURE)
+#define MMDVFS_WQHD_1_0V
+#endif
+
+#ifdef MMDVFS_WQHD_1_0V
+#include "disp_session.h"
+extern int primary_display_switch_mode_for_mmdvfs(int sess_mode, unsigned int session, int blocking);
+#endif
+
 #if (MMDVFS_GPU_LOADING_START_INDEX >= MMDVFS_GPU_LOADING_NUM)
 	#error "start index too large"
 #endif
@@ -48,8 +57,11 @@
 extern unsigned int DISP_GetScreenWidth(void);
 extern unsigned int DISP_GetScreenHeight(void);
 
-#define MMDVFS_CAM_MON_SCEN	SMI_BWC_SCEN_CNT
-#define MMDVFS_SCEN_COUNT	(SMI_BWC_SCEN_CNT + 2)
+enum {
+	MMDVFS_CAM_MON_SCEN = SMI_BWC_SCEN_CNT,
+	MMDVFS_SCEN_MHL,
+	MMDVFS_SCEN_COUNT
+};
 
 static mmdvfs_voltage_enum g_mmdvfs_scenario_voltage[MMDVFS_SCEN_COUNT] = {MMDVFS_VOLTAGE_DEFAULT};
 static mmdvfs_voltage_enum g_mmdvfs_current_step;
@@ -111,11 +123,15 @@ static mmdvfs_lcd_size_enum mmdvfs_get_lcd_resolution(void)
 
 static mmdvfs_voltage_enum mmdvfs_get_default_step(void)
 {
+#ifdef MMDVFS_WQHD_1_0V
+	return MMDVFS_VOLTAGE_LOW;
+#else
 	if (mmdvfs_get_lcd_resolution() == MMDVFS_LCD_SIZE_FHD) {
 		return MMDVFS_VOLTAGE_LOW;
 	}
 
 	return MMDVFS_VOLTAGE_HIGH;
+#endif
 }
 
 static mmdvfs_voltage_enum mmdvfs_get_current_step(void)
@@ -314,6 +330,7 @@ static void mmdvfs_stop_gpu_monitor(mmdvfs_gpu_monitor_struct *gm)
 int mmdvfs_set_step(MTK_SMI_BWC_SCEN scenario, mmdvfs_voltage_enum step)
 {
 	int i, scen_index;
+	unsigned int concurrency;
 	mmdvfs_voltage_enum final_step = mmdvfs_get_default_step();
 
 	if (step == MMDVFS_VOLTAGE_DEFAULT_STEP)
@@ -335,7 +352,7 @@ int mmdvfs_set_step(MTK_SMI_BWC_SCEN scenario, mmdvfs_voltage_enum step)
 
 	MMDVFSMSG("MMDVFS set voltage scen %d step %d\n", scenario, step);
 
-	if ((scenario >= MMDVFS_SCEN_COUNT) || (scenario < SMI_BWC_SCEN_NORMAL))
+	if ((scenario >= (MTK_SMI_BWC_SCEN)MMDVFS_SCEN_COUNT) || (scenario < SMI_BWC_SCEN_NORMAL))
 	{
 		MMDVFSERR("invalid scenario\n");
 		return -1;
@@ -351,6 +368,12 @@ int mmdvfs_set_step(MTK_SMI_BWC_SCEN scenario, mmdvfs_voltage_enum step)
 	
 	g_mmdvfs_scenario_voltage[scen_index] = step;
 
+	concurrency = 0;
+	for (i = 0; i < MMDVFS_SCEN_COUNT; i++) {
+		if (g_mmdvfs_scenario_voltage[i] == MMDVFS_VOLTAGE_HIGH)
+			concurrency |= 1 << i;
+	}
+
 	
 	for (i = 0; i < MMDVFS_SCEN_COUNT; i++) {
 		if (g_mmdvfs_scenario_voltage[i] == MMDVFS_VOLTAGE_HIGH) {
@@ -363,11 +386,21 @@ int mmdvfs_set_step(MTK_SMI_BWC_SCEN scenario, mmdvfs_voltage_enum step)
 	
 	spin_unlock(&g_mmdvfs_mgr->scen_lock);
 
-	MMDVFSMSG("MMDVFS set voltage scen %d step %d final %d\n", scenario, step, final_step);
+	MMDVFSMSG("MMDVFS set voltage scen %d step %d final %d (%x)\n", scenario, step, final_step, concurrency);
 
 #if	MMDVFS_ENABLE
 	
     if (mmdvfs_get_lcd_resolution() == MMDVFS_LCD_SIZE_WQHD) {	
+#ifdef MMDVFS_WQHD_1_0V
+		
+		MMDVFSMSG("WQHD10 %d\n", final_step);
+		if (final_step == MMDVFS_VOLTAGE_HIGH) {
+			vcorefs_request_dvfs_opp(KR_MM_SCEN, OPPI_PERF);
+		} else {
+			vcorefs_request_dvfs_opp(KR_MM_SCEN, OPPI_UNREQ);
+		}
+#else 
+
 		if (!g_mmdvfs_concurrency && (scenario == SMI_BWC_SCEN_UI_IDLE) && (step == MMDVFS_VOLTAGE_LOW)) {
 			
 			MMDVFSMSG("UI LP\n");
@@ -375,6 +408,7 @@ int mmdvfs_set_step(MTK_SMI_BWC_SCEN scenario, mmdvfs_voltage_enum step)
 		} else {
 			vcorefs_request_dvfs_opp(KR_MM_SCEN, OPPI_UNREQ);
 		}
+#endif 
 	} else { 
 		MMDVFSMSG("FHD %d\n", final_step);	
 		if (final_step == MMDVFS_VOLTAGE_HIGH) {
@@ -383,7 +417,7 @@ int mmdvfs_set_step(MTK_SMI_BWC_SCEN scenario, mmdvfs_voltage_enum step)
 			vcorefs_request_dvfs_opp(KR_MM_SCEN, OPPI_UNREQ);
 		}
 	}
-#endif
+#endif 
 
 	return 0;
 }
@@ -400,15 +434,24 @@ void mmdvfs_handle_cmd(MTK_MMDVFS_CMD *cmd)
 		case MTK_MMDVFS_CMD_TYPE_SET:
 			
 			mmdvfs_update_cmd(cmd);
-			cmd->ret = mmdvfs_set_step(cmd->scen, mmdvfs_query(cmd->scen, cmd));
+			if (!(g_mmdvfs_concurrency & (1 << cmd->scen))) {
+				MMDVFSMSG("invalid set scen %d\n", cmd->scen);
+				cmd->ret = -1;
+			} else {
+				cmd->ret = mmdvfs_set_step(cmd->scen, mmdvfs_query(cmd->scen, cmd));
+			}
 			break;
 			
 		case MTK_MMDVFS_CMD_TYPE_QUERY:
-		{				
+		{	
+		#ifndef MMDVFS_WQHD_1_0V
 			if (mmdvfs_get_lcd_resolution() == MMDVFS_LCD_SIZE_WQHD) {
 				
 				cmd->ret = (unsigned int)MMDVFS_STEP_HIGH2HIGH;
-			} else { 
+			} else
+		#endif
+			{
+
 				mmdvfs_voltage_enum query_voltage = mmdvfs_query(cmd->scen, cmd);
 				mmdvfs_voltage_enum current_voltage = mmdvfs_get_current_step();
 				
@@ -447,6 +490,12 @@ void mmdvfs_notify_scenario_exit(MTK_SMI_BWC_SCEN scen)
 			mmdvfs_stop_gpu_monitor(&g_mmdvfs_mgr->gpu_monitor);
 		}
 	#endif 
+
+	#ifdef MMDVFS_WQHD_1_0V
+	if (scen == SMI_BWC_SCEN_VR)
+	mmdvfs_start_cam_monitor();
+	#endif
+
 	} else if ((scen == SMI_BWC_SCEN_VR) &&  
 				(g_mmdvfs_cmd.camera_mode & MMDVFS_CAMERA_MODE_FLAG_PIP)) {
 		
@@ -466,9 +515,27 @@ void mmdvfs_notify_scenario_enter(MTK_SMI_BWC_SCEN scen)
 	MMDVFSMSG("enter %d\n", scen);
 
 	if (mmdvfs_get_lcd_resolution() == MMDVFS_LCD_SIZE_WQHD) {
+	#ifndef MMDVFS_WQHD_1_0V
 		
 		if (scen != SMI_BWC_SCEN_NORMAL)
 			mmdvfs_set_step(scen, MMDVFS_VOLTAGE_HIGH);
+	#else
+		switch (scen) {
+			case SMI_BWC_SCEN_ICFP:
+			case SMI_BWC_SCEN_WFD:
+				mmdvfs_set_step(scen, MMDVFS_VOLTAGE_HIGH);
+				break;
+
+			case SMI_BWC_SCEN_VR:
+			case SMI_BWC_SCEN_VR_SLOW:
+				mmdvfs_set_step(scen, mmdvfs_query(scen, NULL));
+				
+				mmdvfs_set_step(SMI_BWC_SCEN_ICFP, mmdvfs_get_default_step());
+				break;
+			default:
+				break;
+		}
+	#endif
 	#if MMDVFS_ENABLE_WQHD
 		if (scen == SMI_BWC_SCEN_VP) {
 			mmdvfs_start_gpu_monitor(&g_mmdvfs_mgr->gpu_monitor);
@@ -511,6 +578,14 @@ void mmdvfs_init(MTK_SMI_BWC_MM_INFO *info)
 void mmdvfs_mhl_enable(int enable)
 {
 	g_mmdvfs_mgr->is_mhl_enable = enable;
+#ifdef MMDVFS_WQHD_1_0V
+	if (enable) {
+		mmdvfs_set_step(MMDVFS_SCEN_MHL, MMDVFS_VOLTAGE_HIGH);
+	} else {
+		mmdvfs_set_step(MMDVFS_SCEN_MHL, MMDVFS_VOLTAGE_DEFAULT_STEP);
+	}
+#endif 
+
 }
 
 void mmdvfs_notify_scenario_concurrency(unsigned int u4Concurrency)
@@ -532,4 +607,34 @@ void mmdvfs_notify_scenario_concurrency(unsigned int u4Concurrency)
 	g_mmdvfs_concurrency = u4Concurrency;
 }
 
+int mmdvfs_is_default_step_need_perf(void)
+{
+	if (mmdvfs_get_default_step() == MMDVFS_VOLTAGE_LOW) {
+		return 0;
+	}
 
+	return 1;
+}
+
+void mmdvfs_mm_clock_switch_notify(int is_before, int is_to_high)
+{
+	
+#ifdef MMDVFS_WQHD_1_0V
+	int session_id;
+
+	if (mmdvfs_get_lcd_resolution() != MMDVFS_LCD_SIZE_WQHD)
+		return;
+
+	session_id = MAKE_DISP_SESSION(DISP_SESSION_PRIMARY, 0);
+
+	if (!is_before && is_to_high) {
+		MMDVFSMSG("DL\n");
+		
+		primary_display_switch_mode_for_mmdvfs(DISP_SESSION_DIRECT_LINK_MODE, session_id, 0);
+	} else if (is_before && !is_to_high) {
+		
+		MMDVFSMSG("DC\n");
+		primary_display_switch_mode_for_mmdvfs(DISP_SESSION_DECOUPLE_MODE, session_id, 1);
+	}
+#endif 
+}

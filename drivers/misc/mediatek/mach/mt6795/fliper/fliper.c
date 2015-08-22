@@ -25,7 +25,11 @@
 
 #define X_ms 100
 #define Y_steps (2000/X_ms)
+#if defined(CONFIG_MTK_VCORE10_FEATURE)
+#define BW_THRESHOLD 6999
+#else
 #define BW_THRESHOLD 3000
+#endif
 #define BW_THRESHOLD_MAX 9000
 #define BW_THRESHOLD_MIN 1000
 static int bw_threshold = 0;
@@ -33,7 +37,6 @@ static int fliper_enabled = 0;
 static void enable_fliper(void);
 static void disable_fliper(void);
 extern unsigned int get_ddr_type(void)__attribute__((weak));
-/* define supported DRAM types */
 enum
 {
   LPDDR2 = 0,
@@ -43,12 +46,15 @@ enum
   mDDR,
 };
 static int fliper_debug = 0;
+static int variable_bw_threshold = 0;
 static ssize_t mt_fliper_write(struct file *filp, const char *ubuf,
 	   size_t cnt, loff_t *data)
 {
     char buf[64];
     int val;
     int ret;
+    int bw;
+    int i;
     if (cnt >= sizeof(buf))
         return -EINVAL;
 
@@ -57,20 +63,25 @@ static ssize_t mt_fliper_write(struct file *filp, const char *ubuf,
 
     buf[cnt] = 0;
 
-    ret = strict_strtoul(buf, 10, (unsigned long*)&val);
-    if (ret < 0)
-        return ret;
-    if(val == 1){
+    val = buf[0];
+
+    if(val =='1'){
         enable_fliper();
-    }else if(val == 0){
+    }else if(val == '0'){
         disable_fliper();
-    }else if(val == 3){
+    }else if(val == '3'){
         fliper_debug ^= 1;
-    }else if(val == 4){
-        fliper_set_bw(0);
-        fliper_set_bw(10000);
-        fliper_set_bw(BW_THRESHOLD_HIGH);
-    }else if(val == 5){
+    }else if(val == '4'){
+        for (i = 1; i < cnt && buf[i] == ' '; i++);
+        ret = strict_strtoul(&buf[i], 10, (unsigned long*)&bw);
+        if (ret < 0)
+            return ret;
+#if defined(CONFIG_MTK_VCORE10_FEATURE)
+        fliper_set_bw_byfs(bw);
+#else
+        fliper_set_bw(bw);
+#endif
+    }else if(val == '5'){
         fliper_restore_bw();
     }
     printk(" fliper option: %d\n", val);
@@ -85,7 +96,6 @@ static int mt_fliper_show(struct seq_file *m, void *v)
     SEQ_printf(m, "----------------------------------------\n");
     return 0;
 }
-/*** Seq operation of mtprof ****/
 static int mt_fliper_open(struct inode *inode, struct file *file) 
 { 
     return single_open(file, mt_fliper_show, inode->i_private); 
@@ -98,9 +108,7 @@ static const struct file_operations mt_fliper_fops = {
     .llseek = seq_lseek, 
     .release = single_release, 
 };
-/******* POWER PERF TRANSFORMER *********/
 #include <asm/div64.h>
-//Cache info
 #include <mach/mt_cpufreq.h>
 
 static void mt_power_pef_transfer(void);
@@ -110,7 +118,6 @@ static int pp_index;
 static void mt_power_pef_transfer_work(void);
 static DECLARE_WORK(mt_pp_work,(void *) mt_power_pef_transfer_work);
 
-//EMI
 extern unsigned long long get_mem_bw(void);
 static void mt_power_pef_transfer_work()
 {
@@ -119,7 +126,7 @@ static void mt_power_pef_transfer_work()
     int ret;
     unsigned long long t1, t2; 
     t1 = 0; t2 = 0;
-    /*  Get EMI*/ 
+     
     if(fliper_debug == 1){
         t1 = sched_clock();
         emi_bw = get_mem_bw();
@@ -149,6 +156,18 @@ static void mt_power_pef_transfer_work()
 
 
 }
+int fliper_set_bw_byfs(int bw)
+{
+    if(bw <= BW_THRESHOLD_MAX && bw >= BW_THRESHOLD_MIN){
+        printk(KERN_EMERG"\n<<SOC DVFS FLIPER>> Set bdw threshold %d -> %d\n", bw_threshold, bw); 
+        bw_threshold = bw;
+        variable_bw_threshold = bw;
+    }else{
+        printk(KERN_EMERG"\n<<SOC DVFS FLIPER>> Set bdw threshold Error: %d (MAX:%d, MIN:%d)\n",bw, BW_THRESHOLD_MAX, BW_THRESHOLD_MIN ); 
+    }
+    return 0;
+}
+
 int fliper_set_bw(int bw)
 {
     if(bw <= BW_THRESHOLD_MAX && bw >= BW_THRESHOLD_MIN){
@@ -161,8 +180,13 @@ int fliper_set_bw(int bw)
 }
 int fliper_restore_bw()
 {
+#if defined(CONFIG_MTK_VCORE10_FEATURE)
+    printk(KERN_EMERG"\n<<SOC DVFS FLIPER>> Restore bdw threshold %d -> %d\n", bw_threshold, variable_bw_threshold); 
+    bw_threshold = variable_bw_threshold;
+#else
     printk(KERN_EMERG"\n<<SOC DVFS FLIPER>> Restore bdw threshold %d -> %d\n", bw_threshold, BW_THRESHOLD); 
     bw_threshold = BW_THRESHOLD;
+#endif
     return 0;
 }
 static void enable_fliper()
@@ -183,7 +207,6 @@ static void mt_power_pef_transfer()
     schedule_work(&mt_pp_work);
 }
 #if 0
-/*-------------FLIPER DEVICE/DRIVER--------------*/
 static int fliper_probe(struct platform_device *dev)
 {
 	printk("[%s] enter...\n", __func__);
@@ -252,7 +275,6 @@ fliper_pm_callback(struct notifier_block *nb,
     return NOTIFY_OK;
 }
 
-/*-----------------------------------------------*/
 #define TIME_5SEC_IN_MS 5000
 static int __init init_fliper(void)
 {
@@ -261,13 +283,13 @@ static int __init init_fliper(void)
     if (!pe)
         return -ENOMEM;
     bw_threshold = BW_THRESHOLD;
+    variable_bw_threshold = BW_THRESHOLD;
     printk("prepare mt pp transfer: jiffies:%lu-->%lu\n",jiffies, jiffies + msecs_to_jiffies(TIME_5SEC_IN_MS));
     printk("-  next jiffies:%lu >>> %lu\n",jiffies, jiffies + msecs_to_jiffies(X_ms));
     mod_timer(&mt_pp_transfer_timer, jiffies + msecs_to_jiffies(TIME_5SEC_IN_MS));
     fliper_enabled = 1;
     pm_notifier(fliper_pm_callback, 0); 
 #if 0
-/*-------------FLIPER DEVICE/DRIVER--------------*/
     int ret;
 	ret = platform_device_register(&fliper_device);
 	if (ret) {
@@ -287,5 +309,3 @@ static int __init init_fliper(void)
 __initcall(init_fliper);
 
 //MODULE_LICENSE("GPL");
-//MODULE_AUTHOR("MTK");
-//MODULE_DESCRIPTION("The fliper function");

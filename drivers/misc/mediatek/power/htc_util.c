@@ -16,10 +16,10 @@
 #include <mach/mt_gpio_core.h>
 #include <mach/mtk_thermal_monitor.h>
 
-#define MAX_PID				32768
-#define POWER_PROFILE_POLLING_TIME	60000 
-#define THERMAL_LOG_SHOWN_INTERVAL	60000 
-#define NUM_BUSY_PROCESS_CHECK		5
+#define MAX_PID                          32768
+#define POWER_PROFILE_POLLING_TIME_S_OFF 10000 
+#define POWER_PROFILE_POLLING_TIME_S_ON  60000 
+#define NUM_BUSY_PROCESS_CHECK           5
 
 #ifdef CONFIG_VM_EVENT_COUNTERS
 #include <linux/mm.h>
@@ -214,6 +214,7 @@ static char *vreg_sleep_status_info;
 static int slept = 0;
 static unsigned int pon_reason = 0xFFFF;
 static int son = 0;
+static int power_profile_polling_time = 10000;
 
 ssize_t htc_pm_show_wakelocks(char *buf, int size, bool show_active);
 extern int da9210_vosel(unsigned long val);
@@ -259,7 +260,7 @@ static void htc_show_thermal_temp(void)
 	int i = 0, temp = 0;
 	static int count = 0;
 
-	if (++count >= (THERMAL_LOG_SHOWN_INTERVAL / POWER_PROFILE_POLLING_TIME)) {
+	
 		for (i = 0; i < MTK_THERMAL_SENSOR_COUNT; i++) {
 			temp = mtk_thermal_get_temp(i);
 			if (temp == -127000)
@@ -267,7 +268,7 @@ static void htc_show_thermal_temp(void)
 			printk("[K][THERMAL] Sensor %d (%5s) = %d\n", i, thermal_dev_name[i], temp);
 		}
 		count = 0;
-	}
+	
 
 	return;
 }
@@ -575,7 +576,7 @@ static void htc_pm_monitor_work_func(struct work_struct *work)
 	}
 
 	printk("[K][PM] hTC PM Statistic done\n");
-	queue_delayed_work(htc_pm_monitor_wq, &ktop->dwork, msecs_to_jiffies(POWER_PROFILE_POLLING_TIME));
+	queue_delayed_work(htc_pm_monitor_wq, &ktop->dwork, msecs_to_jiffies(power_profile_polling_time));
 }
 
 static struct dentry *gpio_dbgfs_base;
@@ -999,9 +1000,11 @@ static int __init htc_monitor_init(void)
 		memset(htc_kernel_top->prev_cpu_usage[cpu], 0, NR_STATS);
 	}
 
+        power_profile_polling_time = son ? POWER_PROFILE_POLLING_TIME_S_ON : POWER_PROFILE_POLLING_TIME_S_OFF;
+
 	INIT_DELAYED_WORK(&htc_kernel_top->dwork, htc_pm_monitor_work_func);
 	queue_delayed_work(htc_pm_monitor_wq, &htc_kernel_top->dwork,
-					msecs_to_jiffies(POWER_PROFILE_POLLING_TIME));
+					msecs_to_jiffies(power_profile_polling_time));
 
 	
 	gpio_dbgfs_base = debugfs_create_dir("htc_gpio", NULL);

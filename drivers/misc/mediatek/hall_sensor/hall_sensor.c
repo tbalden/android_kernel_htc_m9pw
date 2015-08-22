@@ -35,8 +35,20 @@
 #include <linux/of.h>
 #include <linux/of_irq.h>
 #include <mach/mt_gpio.h>
+#include <linux/time.h>
+#include <linux/jiffies.h>
+
 
 #define DRIVER_NAME "HL"
+
+
+enum{
+	DEBOUNCE_WAIT_IRQ, 
+	DEBOUNCE_UNSTABLE_IRQ, 
+	DEBOUNCE_UNKNOWN_STATE,
+	DEBOUNCE_CHECKING_STATE,
+	DEBOUNCE_DONE,
+};
 
 struct ak_hall_data {
 	struct input_dev *input_dev;
@@ -54,6 +66,18 @@ struct ak_hall_data {
 	struct workqueue_struct *wq_spole;
 	struct work_struct work_npole_irq;
 	struct work_struct work_spole_irq;
+
+	unsigned int SW_timer_debounce;
+	unsigned int HW_timer_far_debounce;
+	unsigned int HW_timer_near_debounce;
+	unsigned int HW_engineer_id;
+	struct timer_list timer_n;
+	struct timer_list timer_s;
+	unsigned char bouncing_flag_n;
+	unsigned char bouncing_flag_s;
+	bool prev_gpio_level_n;
+	bool prev_gpio_level_s;
+
 };
 
 static struct ak_hall_data *g_hl;
@@ -61,6 +85,10 @@ static int prev_val_n = 0;
 static int prev_val_s = 0;
 static int first_boot_s = 1;
 static int first_boot_n = 1;
+static bool HW_debounce_switch = 0;
+
+extern int mt_gpio_set_debounce(unsigned gpio, unsigned debounce);
+extern unsigned int get_sku_data(int index);
 
 static void report_cover_event(int pole, int irq, struct ak_hall_data *hl);
 static ssize_t debug_level_set(struct device *dev, struct device_attribute *attr,
@@ -189,7 +217,7 @@ static int hall_sensor_dt_parser(struct device_node *dt, struct hall_platform_da
 {
 	struct property *prop;
 	int ret = 0;
-	const char *parser_st[] = {"hall,att_used", "hall,att_gpio", "hall,att_gpio_s"};
+	const char *parser_st[] = {"hall,att_used", "hall,att_gpio", "hall,att_gpio_s", "hall,SW_timer_debounce", "hall,HW_timer_far_debounce", "hall,HW_timer_near_debounce", "hall,HW_engineer_id"};
 	uint32_t gpio_att = 0;
 	u32 buf = 0;
 	ret = of_property_read_u32(dt, parser_st[0], (u32 *)&pdata->att_used);
@@ -221,13 +249,69 @@ static int hall_sensor_dt_parser(struct device_node *dt, struct hall_platform_da
 			HL_LOG("[HL]DT:%s[%d] read", parser_st[2], pdata->gpio_att_s);
 		}
 	}
+	prop = of_find_property(dt, parser_st[3], NULL);
+	if(!prop){
+		HL_LOG("[HL]DT: %s parser failue, ret=%d", parser_st[3], gpio_att);
+		ret = gpio_att;
+		pdata->SW_timer_debounce = 0;
+	} else {
+		of_property_read_u32(dt, parser_st[3], &buf);
+		pdata->SW_timer_debounce = buf;
+		HL_LOG("[HL]DT:%s[%d] read", parser_st[3], pdata->SW_timer_debounce);
+	}
+
+	prop = of_find_property(dt, parser_st[4], NULL);
+	if(!prop){
+		HL_LOG("[HL]DT: %s parser failue, ret=%d", parser_st[4], gpio_att);
+		ret = gpio_att;
+		pdata->HW_timer_far_debounce = 0;
+	} else {
+		of_property_read_u32(dt, parser_st[4], &buf);
+		pdata->HW_timer_far_debounce = buf*1000;
+		HL_LOG("[HL]DT:%s[%d] read", parser_st[4], pdata->HW_timer_far_debounce);
+	}
+
+	prop = of_find_property(dt, parser_st[5], NULL);
+	if(!prop){
+		HL_LOG("[HL]DT: %s parser failue, ret=%d", parser_st[5], gpio_att);
+		ret = gpio_att;
+		pdata->HW_timer_near_debounce = 0;
+	} else {
+		of_property_read_u32(dt, parser_st[5], &buf);
+		pdata->HW_timer_near_debounce = buf*1000;
+		HL_LOG("[HL]DT:%s[%d] read", parser_st[5], pdata->HW_timer_near_debounce);
+	}
+
+	prop = of_find_property(dt, parser_st[6], NULL);
+	if(!prop){
+		HL_LOG("[HL]DT: %s parser failue, ret=%d", parser_st[6], gpio_att);
+		ret = gpio_att;
+		pdata->HW_engineer_id = 0;
+	} else {
+		of_property_read_u32(dt, parser_st[6], &buf);
+		pdata->HW_engineer_id = buf;
+		HL_LOG("[HL]DT:%s[%d] read", parser_st[6], pdata->HW_engineer_id);
+	}
+
+	if((pdata->HW_timer_near_debounce+pdata->HW_timer_near_debounce)!=0){
+		HL_LOG(" Engineer id: 0x%x", get_sku_data(0xB));
+		if((get_sku_data(0xB)&0xffff)!=pdata->HW_engineer_id){
+			HW_debounce_switch = 1;
+			HL_LOG("Hall-sensor debounce enable");
+		}else{
+			HW_debounce_switch = 0;
+			HL_LOG("Hall-sensor debounce disable");
+		}
+	}else{
+		HW_debounce_switch = 0;
+		HL_LOG("Hall-sensor debounce disable");
+	}
 
 	return 0;
 parser_failed:
 	return ret;
 }
 #endif
-
 
 static int hall_input_register(struct ak_hall_data *hl)
 {
@@ -256,57 +340,183 @@ static void report_cover_event(int pole, int irq, struct ak_hall_data *hl)
 	uint8_t val_n = 0, val_s = 0;
 	if (pole == HALL_POLE_N) {		
 		val_n = mt_get_gpio_in(hl->gpio_att);
-		irq_set_irq_type(irq, val_n?IRQF_TRIGGER_FALLING : IRQF_TRIGGER_RISING);
+		irq_set_irq_type(irq, val_n?IRQF_TRIGGER_LOW : IRQF_TRIGGER_HIGH);
 		wake_lock_timeout(&hl->wake_lock, (2 * HZ));
-
 		if (prev_val_n != val_n) {
 			input_report_key(hl->input_dev, HALL_N_POLE, !val_n);
 			input_sync(hl->input_dev);
 			prev_val_n = val_n;
 			HL_LOG("att_n[%s]", val_n ? "Far" : "Near");
+			if(HW_debounce_switch){
+				if(val_n){
+					mt_gpio_set_debounce(hl->gpio_att, hl->HW_timer_near_debounce);
+				}else{
+					mt_gpio_set_debounce(hl->gpio_att, hl->HW_timer_far_debounce);
+				}
+			}
 			hallsensor_notifier_call_chain((HALL_POLE_N << HALL_POLE_BIT) |(!val_n), NULL);
 		}
+		enable_irq(hl->irq_n);
 	} else if (pole == HALL_POLE_S) {	
 		val_s = mt_get_gpio_in(hl->gpio_att_s);
-		irq_set_irq_type(irq, val_s?IRQF_TRIGGER_FALLING : IRQF_TRIGGER_RISING);
+		irq_set_irq_type(irq, val_s?IRQF_TRIGGER_LOW : IRQF_TRIGGER_HIGH);
 		wake_lock_timeout(&hl->wake_lock, (2 * HZ));
-
 		if (prev_val_s != val_s) {
 			input_report_key(hl->input_dev, HALL_S_POLE, !val_s);
 			input_sync(hl->input_dev);
 			prev_val_s = val_s;
 			HL_LOG("att_s[%s]", val_s ? "Far" : "Near");
+			if(HW_debounce_switch){
+				if(val_s){
+					mt_gpio_set_debounce(hl->gpio_att_s, hl->HW_timer_near_debounce);
+				}else{
+					mt_gpio_set_debounce(hl->gpio_att_s, hl->HW_timer_far_debounce);
+				}
+			}
 			hallsensor_notifier_call_chain((HALL_POLE_S << HALL_POLE_BIT) |(!val_s), NULL);
 		}
+		enable_irq(hl->irq_s);
 	}
-}
-
-static void hall_npole_work(struct work_struct *work)
-{
-	struct ak_hall_data *hl = container_of(work, struct ak_hall_data, work_npole_irq);
-	report_cover_event(HALL_POLE_N, hl->irq_n, hl);
-}
-
-static void hall_spole_work(struct work_struct *work)
-{
-	struct ak_hall_data *hl = container_of(work, struct ak_hall_data, work_spole_irq);
-	report_cover_event(HALL_POLE_S, hl->irq_s, hl);
 }
 
 static irqreturn_t hall_npole_irq_thread(int irq, void *ptr)
 {
 	struct ak_hall_data *hl = ptr;
-	HL_LOG_TIME("N-pole interrupt trigger");
-	queue_work(hl->wq_npole, &hl->work_npole_irq);
+	unsigned long irqflags;
+	uint8_t val_n = 0;
+
+	val_n = mt_get_gpio_in(hl->gpio_att);
+	disable_irq_nosync(hl->irq_n);
+	if(hl->bouncing_flag_n == DEBOUNCE_WAIT_IRQ) {
+		hl->bouncing_flag_n = DEBOUNCE_UNKNOWN_STATE;
+		if(hl->SW_timer_debounce && !val_n){
+			mod_timer(&hl->timer_n ,jiffies + msecs_to_jiffies(hl->SW_timer_debounce));
+			HL_LOG_TIME("[HL] Received a Npole %s interrupt", val_n ? "Far" : "Near");
+		} else {
+			schedule_work(&hl->work_npole_irq);
+			HL_LOG_TIME("[HL] Received a Npole %s interrupt", val_n ? "Far" : "Near");
+		}
+	} else {
+		hl->bouncing_flag_n = DEBOUNCE_UNSTABLE_IRQ;
+		HL_LOG_TIME("[HL] Debounce a Npole %s event", val_n ? "Far" : "Near");
+	}
+
 	return IRQ_HANDLED;
 }
 
 static irqreturn_t hall_spole_irq_thread(int irq, void *ptr)
 {
 	struct ak_hall_data *hl = ptr;
-	HL_LOG_TIME("S-pole interrupt trigger");
-	queue_work(hl->wq_spole, &hl->work_spole_irq);
+	unsigned long irqflags;
+	uint8_t val_s = 0;
+
+	val_s = mt_get_gpio_in(hl->gpio_att_s);
+	disable_irq_nosync(hl->irq_s);
+	if(hl->bouncing_flag_s == DEBOUNCE_WAIT_IRQ) {
+		hl->bouncing_flag_s = DEBOUNCE_UNKNOWN_STATE;
+		if(hl->SW_timer_debounce && !val_s){
+			mod_timer(&hl->timer_s ,jiffies + msecs_to_jiffies(hl->SW_timer_debounce));
+			HL_LOG_TIME("[HL] Received a Spole %s interrupt", val_s ? "Far" : "Near");
+		} else {
+			schedule_work(&hl->work_spole_irq);
+			HL_LOG_TIME("[HL] Received a Spole %s interrupt", val_s ? "Far" : "Near");
+		}
+	} else {
+		hl->bouncing_flag_s = DEBOUNCE_UNSTABLE_IRQ;
+		HL_LOG_TIME("[HL] Debounce a Spole %s event", val_s ? "Far" : "Near");
+	}
+
 	return IRQ_HANDLED;
+}
+
+static void gpio_hall_work_func_n(struct work_struct *work)
+{
+	struct ak_hall_data *hl = container_of(work,struct ak_hall_data,work_npole_irq);
+	unsigned long irq_flags;
+	bool temp_gpio_level;
+	uint8_t val_n = 0;
+
+	val_n = mt_get_gpio_in(hl->gpio_att);
+
+	if(hl->SW_timer_debounce && !val_n){
+		temp_gpio_level = gpio_get_value(hl->gpio_att);
+		switch(hl->bouncing_flag_n){
+		case DEBOUNCE_UNSTABLE_IRQ:
+		case DEBOUNCE_UNKNOWN_STATE:
+			hl->bouncing_flag_n = DEBOUNCE_CHECKING_STATE;
+			hl->prev_gpio_level_n = temp_gpio_level;
+		break;
+		case DEBOUNCE_CHECKING_STATE:
+			if(hl->prev_gpio_level_n == temp_gpio_level){
+				hl->bouncing_flag_n = DEBOUNCE_DONE;
+			}else{
+				HL_LOG_TIME("[HL] Npole Interrupt debounced");
+				hl->prev_gpio_level_n = temp_gpio_level;
+		}
+		break;
+		default:
+			hl->bouncing_flag_n = DEBOUNCE_UNKNOWN_STATE;
+		break;
+		}
+	}
+
+	if((hl->SW_timer_debounce)&&(hl->bouncing_flag_n != DEBOUNCE_DONE)&& !val_n){
+		mod_timer(&hl->timer_n , jiffies+msecs_to_jiffies(hl->SW_timer_debounce));
+		
+	}else{
+		hl->bouncing_flag_n = DEBOUNCE_WAIT_IRQ;
+		report_cover_event(0, hl->irq_n, hl);
+	}
+}
+static void gpio_hall_work_func_s(struct work_struct *work)
+{
+	struct ak_hall_data *hl = container_of(work,struct ak_hall_data,work_spole_irq);
+	unsigned long irq_flags;
+	bool temp_gpio_level;
+	uint8_t val_s = 0;
+
+	val_s = mt_get_gpio_in(hl->gpio_att_s);
+	if(hl->SW_timer_debounce && !val_s ){
+		temp_gpio_level = gpio_get_value(hl->gpio_att_s);
+		switch(hl->bouncing_flag_s){
+		case DEBOUNCE_UNSTABLE_IRQ:
+		case DEBOUNCE_UNKNOWN_STATE:
+			hl->bouncing_flag_s = DEBOUNCE_CHECKING_STATE;
+			hl->prev_gpio_level_s = temp_gpio_level;
+		break;
+		case DEBOUNCE_CHECKING_STATE:
+			if(hl->prev_gpio_level_s == temp_gpio_level){
+				hl->bouncing_flag_s = DEBOUNCE_DONE;
+			}else{
+				HL_LOG_TIME("[HL] Spole Interrupt debounced");
+				hl->prev_gpio_level_s = temp_gpio_level;
+		}
+		break;
+		default:
+			hl->bouncing_flag_s = DEBOUNCE_UNKNOWN_STATE;
+		break;
+		}
+	}
+
+	if((hl->SW_timer_debounce)&&(hl->bouncing_flag_s != DEBOUNCE_DONE)&& !val_s){
+		mod_timer(&hl->timer_s , jiffies+msecs_to_jiffies(hl->SW_timer_debounce));
+		
+	}else{
+		hl->bouncing_flag_s = DEBOUNCE_WAIT_IRQ;
+		report_cover_event(1, hl->irq_s, hl);
+	}
+}
+
+static void gpio_hall_timer_n(unsigned long _data)
+{
+	struct ak_hall_data *hl = (struct ak_hall_data*)_data;
+	schedule_work(&hl->work_npole_irq);
+}
+
+static void gpio_hall_timer_s(unsigned long _data)
+{
+	struct ak_hall_data *hl = (struct ak_hall_data*)_data;
+	schedule_work(&hl->work_spole_irq);
 }
 
 static int hall_sensor_probe(struct platform_device *pdev)
@@ -344,10 +554,14 @@ static int hall_sensor_probe(struct platform_device *pdev)
 			hl->att_used   = pdata->att_used;
 			hl->gpio_att   = pdata->gpio_att;
 			hl->gpio_att_s = pdata->gpio_att_s;
+			hl->SW_timer_debounce = pdata->SW_timer_debounce;
+			hl->HW_timer_far_debounce = pdata->HW_timer_far_debounce;
+			hl->HW_timer_near_debounce = pdata->HW_timer_near_debounce;
+			hl->HW_engineer_id = pdata->HW_engineer_id;
+			HL_LOG("[HL] Debounce time: %d, HW far: %d, HW near: %d", hl->SW_timer_debounce, hl->HW_timer_far_debounce, hl->HW_timer_near_debounce);
 		}
 	}
 	hl->irq_enable = 1;
-
 	ret = hall_input_register(hl);
 	if (ret)
 		goto err_input_register_device_failed;
@@ -368,6 +582,9 @@ static int hall_sensor_probe(struct platform_device *pdev)
 	prev_val_n = mt_get_gpio_in(hl->gpio_att);
 	HL_LOG("[HL]mt get gipo dir = %d att_n = %d\n",hl->gpio_att , prev_val_n);
 
+	hl->bouncing_flag_n = DEBOUNCE_WAIT_IRQ;
+	hl->bouncing_flag_s = DEBOUNCE_WAIT_IRQ;
+
 	
 	hl->wq_npole = create_singlethread_workqueue("hall_wq_npole");
 	if (hl->wq_npole == NULL) {
@@ -375,7 +592,7 @@ static int hall_sensor_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto err_device_init_wq_pole;
 	}
-	INIT_WORK(&hl->work_npole_irq, hall_npole_work);
+	INIT_WORK(&hl->work_npole_irq, gpio_hall_work_func_n);
 
 	hl->wq_spole = create_singlethread_workqueue("hall_wq_spole");
 	if (hl->wq_spole == NULL) {
@@ -383,19 +600,27 @@ static int hall_sensor_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto err_device_init_wq_pole;
 	}
-	INIT_WORK(&hl->work_spole_irq, hall_spole_work);
+	INIT_WORK(&hl->work_spole_irq, gpio_hall_work_func_s);
 
 	node = of_find_compatible_node(NULL, NULL, "mediatek, HALL_1-eint");
 	if(node){
 		irq = irq_of_parse_and_map(node, 0);
-
-		if(prev_val_n == 1){
-			ret = request_irq(irq, hall_npole_irq_thread,
-			IRQF_TRIGGER_FALLING, "HALL_1-eint", hl);
-		}
-		else if(prev_val_n == 0){
-			ret = request_irq(irq, hall_npole_irq_thread,
-			IRQF_TRIGGER_RISING, "HALL_1-eint", hl);
+		if(HW_debounce_switch){
+			if(prev_val_n == 1){
+				mt_gpio_set_debounce(hl->gpio_att, hl->HW_timer_near_debounce);
+				ret = request_irq(irq, hall_npole_irq_thread,IRQF_TRIGGER_LOW, "HALL_1-eint", hl);
+			}
+			else if(prev_val_n == 0){
+				mt_gpio_set_debounce(hl->gpio_att, hl->HW_timer_far_debounce);
+				ret = request_irq(irq, hall_npole_irq_thread,IRQF_TRIGGER_HIGH, "HALL_1-eint", hl);
+			}
+		}else{
+			if(prev_val_n == 1){
+				ret = request_irq(irq, hall_npole_irq_thread,IRQF_TRIGGER_LOW, "HALL_1-eint", hl);
+			}
+			else if(prev_val_n == 0){
+				ret = request_irq(irq, hall_npole_irq_thread,IRQF_TRIGGER_HIGH, "HALL_1-eint", hl);
+			}
 		}
 		if (ret == 0)
 		{
@@ -414,14 +639,21 @@ static int hall_sensor_probe(struct platform_device *pdev)
 			node = of_find_compatible_node(NULL, NULL, "mediatek, HALL_2-eint");
 			if(node){
 				irq = irq_of_parse_and_map(node, 0);
-
-				if(prev_val_s == 1){
-					ret = request_irq(irq, hall_spole_irq_thread,
-					IRQF_TRIGGER_FALLING, "HALL_2-eint", hl);
-				}
-				else if(prev_val_s == 0){
-					ret = request_irq(irq, hall_spole_irq_thread,
-					IRQF_TRIGGER_RISING, "HALL_2-eint", hl);
+				if(HW_debounce_switch){
+					if(prev_val_s == 1){
+						mt_gpio_set_debounce(hl->gpio_att_s, hl->HW_timer_near_debounce);
+						ret = request_irq(irq, hall_spole_irq_thread,IRQF_TRIGGER_LOW, "HALL_1-eint", hl);
+					}
+					else if(prev_val_s == 0){
+						mt_gpio_set_debounce(hl->gpio_att_s, hl->HW_timer_far_debounce);
+						ret = request_irq(irq, hall_spole_irq_thread,IRQF_TRIGGER_HIGH, "HALL_1-eint", hl);
+					}
+				}else{
+					if(prev_val_s == 1){
+						ret = request_irq(irq, hall_spole_irq_thread,IRQF_TRIGGER_LOW, "HALL_1-eint", hl);
+					}else if(prev_val_s == 0){
+						ret = request_irq(irq, hall_spole_irq_thread,IRQF_TRIGGER_HIGH, "HALL_1-eint", hl);
+					}
 				}
 				if (ret == 0)
 				{
@@ -436,9 +668,11 @@ static int hall_sensor_probe(struct platform_device *pdev)
 					goto err_request_irq_failed;
 				}
 			}
-
 		}
 	}
+
+	setup_timer(&hl->timer_n , gpio_hall_timer_n, (unsigned long)hl);
+	setup_timer(&hl->timer_s , gpio_hall_timer_s, (unsigned long)hl);
 	hall_cover_sysfs_init();
 	g_hl = hl;
 

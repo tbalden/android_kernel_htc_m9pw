@@ -99,6 +99,7 @@ int primary_trigger_cnt = 0;
 typedef struct {
 	DISP_POWER_STATE			state;
 	unsigned int				lcm_fps;
+	int				        lcm_refresh_rate;
 	int					        max_layer;
 	int					        need_trigger_overlay;
 	int					        need_trigger_ovl1to2;
@@ -133,6 +134,10 @@ typedef struct {
 	cmdqBackupSlotHandle		subtractor_when_free;
 	cmdqBackupSlotHandle        rdma_buff_info;
 	cmdqBackupSlotHandle        ovl_status_info;
+	int                         hwc_refresh_cnt;
+	unsigned long long          hwc_refresh_time;
+	int				delay_switch_mode_needed;
+	unsigned int			delay_switch_mode;
 }display_primary_path_context;
 
 #define pgc	_get_context()
@@ -255,8 +260,6 @@ static int primary_display_set_idle_stat(int is_idle)
 	return old_stat;
 }
 
-
-
 void primary_display_idlemgr_enter_idle(int need_lock)
 {
 #if 0
@@ -271,7 +274,7 @@ void primary_display_idlemgr_enter_idle(int need_lock)
 	session_mode_before_enter_idle = pgc->session_mode;
 
 	if(primary_display_is_video_mode() &&
-		pgc->session_mode == DISP_SESSION_DIRECT_LINK_MODE &&
+		!primary_display_is_mirror_mode() &&
 		disp_helper_get_option(DISP_HELPER_OPTION_IDLEMGR_SWTCH_DECOUPLE))
 	{
 		if(disp_helper_get_option(DISP_HELPER_OPTION_IDLEMGR_DISABLE_ROUTINE_IRQ))
@@ -279,15 +282,16 @@ void primary_display_idlemgr_enter_idle(int need_lock)
 			
 			dpmgr_path_enable_irq(pgc->dpmgr_handle, NULL, DDP_IRQ_LEVEL_ERROR);
 		}
-
+#if (!defined(CONFIG_MTK_VCORE10_FEATURE))
 		
-		__primary_display_switch_mode(DISP_SESSION_DECOUPLE_MODE, pgc->session_id, need_lock);
+		__primary_display_switch_mode(DISP_SESSION_DECOUPLE_MODE, pgc->session_id, need_lock, 1);
 
 		#if 0
 		vcorefs_request_dvfs_opp(KR_MM_SCEN, OPPI_LOW_PWR);
 		#else
 		mmdvfs_set_step(SMI_BWC_SCEN_UI_IDLE, MMDVFS_VOLTAGE_LOW);
 		#endif
+#endif
 
 		if(pgc->plcm->params->dsi.vertical_frontporch_for_low_power)
 		{
@@ -381,7 +385,7 @@ void primary_display_idlemgr_leave_idle(int need_lock)
 
 			cmdqRecDestroy(handle);
 		}
-
+#if (!defined(CONFIG_MTK_VCORE10_FEATURE))
 		#if 0
 		vcorefs_request_dvfs_opp(KR_MM_SCEN, OPPI_UNREQ);
 		#else
@@ -389,7 +393,8 @@ void primary_display_idlemgr_leave_idle(int need_lock)
 		#endif
 
 		
-		__primary_display_switch_mode(session_mode_before_enter_idle, pgc->session_id, need_lock);
+		__primary_display_switch_mode(session_mode_before_enter_idle, pgc->session_id, need_lock, 1);
+#endif
 
 		if(disp_helper_get_option(DISP_HELPER_OPTION_IDLEMGR_DISABLE_ROUTINE_IRQ))
 		{
@@ -1707,6 +1712,137 @@ out:
 	return ret;
 }
 
+static int _DL_switch_to_DC_fast_sw_only(void)
+{
+	int ret = 0;
+    DDP_SCENARIO_ENUM old_scenario, new_scenario;
+    RDMA_CONFIG_STRUCT rdma_config = decouple_rdma_config;
+    WDMA_CONFIG_STRUCT wdma_config = decouple_wdma_config;
+
+	disp_ddp_path_config *data_config_dl = NULL;
+    disp_ddp_path_config *data_config_dc = NULL;
+    unsigned int mva = pgc->dc_buf[pgc->dc_buf_id];
+    wdma_config.dstAddress = mva;
+
+	
+	
+
+    MMProfileLogEx(ddp_mmp_get_events()->primary_switch_mode, MMProfileFlagPulse, 1, 0);
+
+	
+	_cmdq_reset_config_handle();
+	_cmdq_handle_clear_dirty(pgc->cmdq_handle_config);
+	_cmdq_insert_wait_frame_done_token();
+
+	
+	old_scenario = dpmgr_get_scenario(pgc->dpmgr_handle);
+#if CONFIG_FOR_SOURCE_PQ
+	new_scenario = DDP_SCENARIO_PRIMARY_RDMA0_DISP;
+#else
+	if(decouple_shorter_path)
+	{
+		new_scenario = DDP_SCENARIO_PRIMARY_RDMA0_DISP;
+	}
+	else
+	{
+		new_scenario = DDP_SCENARIO_PRIMARY_RDMA0_COLOR0_DISP;
+	}
+#endif
+	dpmgr_modify_path_power_on_new_modules(pgc->dpmgr_handle, new_scenario, 0);
+
+	dpmgr_modify_path(pgc->dpmgr_handle, new_scenario, pgc->cmdq_handle_config,
+			primary_display_is_video_mode()?DDP_VIDEO_MODE:DDP_CMD_MODE, 0);
+
+
+	
+	rdma_config.address = mva;
+
+    data_config_dl = dpmgr_path_get_last_config(pgc->dpmgr_handle);
+    data_config_dl->rdma_config = rdma_config;
+    data_config_dl->rdma_dirty = 1;
+	ret = dpmgr_path_config(pgc->dpmgr_handle, data_config_dl, pgc->cmdq_handle_config);
+
+    
+    cmdqRecBackupUpdateSlot(pgc->cmdq_handle_config, pgc->rdma_buff_info, 0, mva);
+    cmdqRecBackupUpdateSlot(pgc->cmdq_handle_config, pgc->rdma_buff_info, 1, rdma_config.pitch);
+
+    
+	_cmdq_set_config_handle_dirty();
+	
+
+	
+
+    MMProfileLogEx(ddp_mmp_get_events()->primary_switch_mode, MMProfileFlagPulse, 2, 0);
+
+   
+
+    
+	_cmdq_reset_config_handle();
+	_cmdq_handle_clear_dirty(pgc->cmdq_handle_config);
+	_cmdq_insert_wait_frame_done_token();
+
+	
+	cmdqRecReset(pgc->cmdq_handle_ovl1to2_config);
+#if CONFIG_FOR_SOURCE_PQ
+	pgc->ovl2mem_path_handle = dpmgr_create_path(DDP_SCENARIO_PRIMARY_DITHER_MEMOUT, pgc->cmdq_handle_ovl1to2_config);
+#else
+	pgc->ovl2mem_path_handle = dpmgr_create_path(DDP_SCENARIO_PRIMARY_OVL_MEMOUT, pgc->cmdq_handle_ovl1to2_config);
+#endif
+	if(pgc->ovl2mem_path_handle)
+	{
+		DISPCHECK("dpmgr create ovl memout path SUCCESS(%p)\n", pgc->ovl2mem_path_handle);
+	}
+	else
+	{
+		DISPCHECK("dpmgr create path FAIL\n");
+		return -1;
+	}
+
+	dpmgr_path_set_video_mode(pgc->ovl2mem_path_handle, 0);
+	dpmgr_path_init(pgc->ovl2mem_path_handle, CMDQ_ENABLE);
+
+	data_config_dc = dpmgr_path_get_last_config(pgc->ovl2mem_path_handle);
+    data_config_dc->dst_w = rdma_config.width;
+	data_config_dc->dst_h = rdma_config.height;
+	data_config_dc->dst_dirty = 1;
+
+    
+    memcpy(data_config_dc->ovl_config, data_config_dl->ovl_config, sizeof(data_config_dl->ovl_config));
+
+	ret = dpmgr_path_config(pgc->ovl2mem_path_handle, data_config_dc, pgc->cmdq_handle_ovl1to2_config);
+	ret = dpmgr_path_start(pgc->ovl2mem_path_handle, CMDQ_ENABLE);
+
+	
+
+	
+		cmdqRecClearEventToken(pgc->cmdq_handle_ovl1to2_config ,CMDQ_EVENT_DISP_WDMA0_EOF);
+    
+    cmdqRecReset(pgc->cmdq_handle_ovl1to2_config);
+
+    MMProfileLogEx(ddp_mmp_get_events()->primary_switch_mode, MMProfileFlagPulse, 3, 0);
+
+	
+
+	if(primary_display_is_video_mode())
+	{
+		dpmgr_map_event_to_irq(pgc->dpmgr_handle, DISP_PATH_EVENT_IF_VSYNC, DDP_IRQ_RDMA0_DONE);
+	}
+	dpmgr_enable_event(pgc->dpmgr_handle, DISP_PATH_EVENT_IF_VSYNC);
+	
+	dpmgr_enable_event(pgc->dpmgr_handle, DISP_PATH_EVENT_FRAME_START);
+
+	if(!primary_display_is_video_mode())
+	{
+		msleep(30);
+		_cmdq_stop_trigger_loop();
+		_cmdq_build_trigger_loop();
+	    _cmdq_start_trigger_loop();
+	}
+
+out:
+	return ret;
+}
+
 static int DL_switch_to_DC_fast_two_pipe(int sw_only)
 {
 	int ret = 0;
@@ -1731,7 +1867,9 @@ static int DL_switch_to_DC_fast(int sw_only)
 		ret = _DL_switch_to_DC_fast();
 	}
 	else
-		ret = -1; 
+	{
+		ret = _DL_switch_to_DC_fast_sw_only();
+	}
 
 	return ret;
 }
@@ -1957,7 +2095,9 @@ const char* session_mode_spy(unsigned int mode)
 static int config_display_m4u_port()
 {
     int ret = 0;
-#ifndef MTKFB_NO_M4U
+    if(disp_helper_get_option(DISP_HELPER_OPTION_USE_M4U))
+    {
+
     M4U_PORT_STRUCT sPort;
     sPort.ePortID = M4U_PORT_DISP_OVL0;
     sPort.Virtuality = primary_display_use_m4u;                    
@@ -1997,7 +2137,8 @@ static int config_display_m4u_port()
         DISPCHECK("config M4U Port %s to %s FAIL(ret=%d)\n",ddp_get_module_name(DISP_MODULE_WDMA0), primary_display_use_m4u?"virtual":"physical", ret);
         return -1;
     }
-#endif
+    }
+
     return ret;
 }
 
@@ -2057,6 +2198,7 @@ static disp_internal_buffer_info *allocat_decouple_buffer(int size)
 		buf_info->mva = buffer_mva;
 		buf_info->size = mva_size;
         buf_info->va = buffer_va;
+	DISPMSG("allocat_decouple_buffer, mva=0x%08x, size=0x%08x, va=0x%p\n", (unsigned int)buf_info->mva, (unsigned int)buf_info->size, buf_info->va);
 	}else{
 		DISPERR("Fatal error, kzalloc internal buffer info failed!!\n");
         kfree(buf_info);
@@ -2252,7 +2394,8 @@ int _trigger_ovl_to_memory(disp_path_handle disp_handle,
     cmdqRecFlushAsyncCallback(cmdq_handle,callback,data);
     cmdqRecReset(cmdq_handle);
     cmdqRecWait(cmdq_handle, CMDQ_EVENT_DISP_WDMA0_EOF);
-    MMProfileLogEx(ddp_mmp_get_events()->ovl_trigger, MMProfileFlagPulse, 0, data);
+    MMProfileLogEx(ddp_mmp_get_events()->ovl_trigger, MMProfileFlagStart, 0, data);
+
 }
 
 int _trigger_ovl_to_memory_mirror(disp_path_handle disp_handle,
@@ -2849,9 +2992,10 @@ static int _disp_primary_path_check_trigger(void *data)
 			dpmgr_wait_event(pgc->dpmgr_handle, DISP_PATH_EVENT_TRIGGER);
 			MMProfileLogEx(ddp_mmp_get_events()->primary_display_aalod_trigger,
 				       MMProfileFlagPulse, 0, 0);
-			primary_display_idlemgr_kick(__func__, 1);
 
 			_primary_path_lock(__func__);
+
+			primary_display_idlemgr_kick(__func__, 0);
 
 			if (pgc->state != DISP_SLEEPED) {
 				cmdqRecReset(handle);
@@ -2931,25 +3075,6 @@ static void _RDMA0_INTERNAL_IRQ_Handler(DISP_MODULE_ENUM module, unsigned int pa
 	}
 }
 
-void primary_display_sodi_rule_init(void)
-{
-	if(disp_od_is_enabled() && (primary_display_mode == DECOUPLE_MODE) && primary_display_is_video_mode())
-	{
-		spm_enable_sodi(0);
-		return;
-	}
-	if(primary_display_is_video_mode())
-	{
-		spm_enable_sodi(0);
-	}
-	else
-	{
-		spm_enable_sodi(1);
-	}
-	return;
-}
-
-
 extern int dfo_query(const char *s, unsigned long *v);
 
 int primary_display_change_lcm_resolution(unsigned int width, unsigned int height)
@@ -3009,6 +3134,7 @@ static void _Interface_fence_release_callback(uint32_t userdata)
     return;
 }
 
+extern u32 get_vcore_pdn(void);
 static void _ovl_fence_release_callback(uint32_t userdata)
 {
     int i = 0;
@@ -3051,6 +3177,7 @@ static void _ovl_fence_release_callback(uint32_t userdata)
     _primary_path_lock(__func__);
     if(primary_display_is_decouple_mode() && userdata == DISP_SESSION_DECOUPLE_MODE)
     {
+        MMProfileLogEx(ddp_mmp_get_events()->ovl_trigger, MMProfileFlagEnd, 0, addr);
         static cmdqRecHandle cmdq_handle = NULL;
         if(cmdq_handle == NULL)
     	    ret = cmdqRecCreate(CMDQ_SCENARIO_PRIMARY_DISP,&cmdq_handle);
@@ -3059,6 +3186,34 @@ static void _ovl_fence_release_callback(uint32_t userdata)
             _cmdq_insert_wait_frame_done_token_mira(cmdq_handle);
             cmdqBackupReadSlot(pgc->rdma_buff_info, 0, &addr);
             decouple_rdma_config.address = addr;
+
+		if(disp_helper_get_option(DISP_HELPER_OPTION_DISPLAY_PATH_DEBUG_PATTERN))
+		{
+			int i = 0;
+			void *va = NULL;
+			for(i=0;i<DISP_INTERNAL_BUFFER_COUNT;i++)
+			{
+				if(addr == decouple_buffer_info[i]->mva)
+				{
+					va = decouple_buffer_info[i]->va;
+					break;
+				}
+			}
+
+			DISPMSG("addr=0x%08x, va=0x%p\n", addr, va);
+
+			if(va)
+			{
+				memset(va, 0xff, primary_display_get_width()*3*10);
+				unsigned int vcore = 0;
+				DISPMSG("get_vcore_pdn: 0x%08x\n", vcore);
+				if(vcore == 0x30)
+				{
+					memset(va + primary_display_get_width()*3*20, 0xff, primary_display_get_width()*3*10);
+				}
+			}
+		}
+
             _config_rdma_input_data(&decouple_rdma_config,pgc->dpmgr_handle,cmdq_handle);
             _cmdq_set_config_handle_dirty_mira(cmdq_handle);
             cmdqRecFlushAsyncCallback(cmdq_handle, NULL, 0);
@@ -3070,6 +3225,7 @@ static void _ovl_fence_release_callback(uint32_t userdata)
     	}
     }
     _primary_path_unlock(__func__);
+    MMProfileLogEx(ddp_mmp_get_events()->session_release, MMProfileFlagEnd, 0, 0);
 
     return;
 }
@@ -3357,10 +3513,7 @@ static int _present_fence_release_worker_thread(void *data)
 		int fence_increment=0;
 		int timeline_id;
 
-		if(pgc->state == DISP_SLEEPED)
-			dpmgr_wait_event(pgc->dpmgr_handle, DISP_PATH_EVENT_IF_VSYNC);
-		else
-			dpmgr_wait_event_timeout(pgc->dpmgr_handle, DISP_PATH_EVENT_IF_VSYNC, HZ/10);
+		dpmgr_wait_event(pgc->dpmgr_handle, DISP_PATH_EVENT_IF_VSYNC);
 
 		timeline_id = disp_sync_get_present_timeline_id();
 
@@ -3631,7 +3784,7 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps)
 		if( lcm_param->dpi.format == LCM_DPI_FORMAT_RGB666)
 			data_config->lcm_bpp = 18;
 	}
-	
+
 	data_config->fps = lcm_fps;
 	data_config->dst_dirty = 1;
 
@@ -3656,18 +3809,74 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps)
 		ret = disp_lcm_init(pgc->plcm, 1);
 	}
 
+	if(primary_display_is_video_mode())
+	{
+#ifdef DISP_SWITCH_DST_MODE
+		primary_display_cur_dst_mode = 1;
+		primary_display_def_dst_mode = 1;
+#endif
+		dpmgr_map_event_to_irq(pgc->dpmgr_handle, DISP_PATH_EVENT_IF_VSYNC, DDP_IRQ_RDMA0_DONE);
+	}
+
+	pgc->lcm_fps = lcm_fps;
+	pgc->max_layer = 4;
+
+	pgc->state = DISP_ALIVE;
+
+	
+	
+	
+	if(disp_helper_get_option(DISP_HELPER_OPTION_DEFAULT_DECOUPLE_MODE))
+	{
+		int session_id = MAKE_DISP_SESSION(DISP_SESSION_PRIMARY,0);
+		primary_display_idlemgr_kick(__func__, 0);
+		ret = __primary_display_switch_mode(DISP_SESSION_DECOUPLE_MODE, session_id, 0, 1);
+		{
+			
+			
+			
+			unsigned int wdma_mva = pgc->dc_buf[pgc->dc_buf_id];
+
+			WDMA_CONFIG_STRUCT tem_config = decouple_wdma_config;
+			tem_config.dstAddress = wdma_mva;
+#ifdef UFOE_MEMORY_OUT
+			tem_config.srcWidth /=3;
+			tem_config.clipWidth /=3;
+			tem_config.dstPitch /=3;
+#endif
+			_config_wdma_output(&tem_config,pgc->ovl2mem_path_handle, pgc->cmdq_handle_ovl1to2_config);
+			mem_config.addr = wdma_mva ;
+			MMProfileLogEx(ddp_mmp_get_events()->primary_wdma_config, MMProfileFlagPulse, pgc->dc_buf_id, wdma_mva);
+		}
+	}
+
+	primary_display_post_init();
+
+done:
+	_primary_path_unlock(__func__);
+
+	return ret;
+}
+
+int primary_display_post_init(void)
+{
+	DISP_MODULE_ENUM dst_module = 0;
+
 	if(disp_helper_get_stage() == DISP_HELPER_STAGE_NORMAL)
 	{
 		primary_display_esd_check_task = kthread_create(primary_display_esd_check_worker_kthread, NULL, "display_esd_check");
 		init_waitqueue_head(&esd_ext_te_wq);
 		init_waitqueue_head(&esd_check_task_wq);
-		if (_need_do_esd_check()) 
+		if (_need_do_esd_check())
 		{
 			wake_up_process(primary_display_esd_check_task);
 		}
-	}
-	
-#if 1
+
+		if (_need_do_esd_check())
+		{
+			primary_display_esd_check_enable(1);
+		}
+
 	if (_need_register_eint()) 
 	{
 		
@@ -3700,41 +3909,29 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps)
 			DISPCHECK("[ESD][%s] can't find DSI_TE_1 eint compatible node\n", __func__);
 		}
 	}
-#endif
 
-	if(disp_helper_get_stage() == DISP_HELPER_STAGE_NORMAL)
-	{
-		if (_need_do_esd_check()) 
-		{
-			primary_display_esd_check_enable(1);
-		}
-	}
 	
 #ifdef DISP_SWITCH_DST_MODE
 	primary_display_switch_dst_mode_task = kthread_create(_disp_primary_path_switch_dst_mode_thread, NULL, "display_switch_dst_mode");
 	wake_up_process(primary_display_switch_dst_mode_task);
 #endif
 
-	if(decouple_update_rdma_config_thread == NULL) {
+	if(decouple_update_rdma_config_thread == NULL)
+	{
 		decouple_update_rdma_config_thread = kthread_create(decouple_mirror_update_rdma_config_thread, NULL, "decouple_update_rdma_cfg");
 		wake_up_process(decouple_update_rdma_config_thread);
 	}
 
-	if(decouple_trigger_thread == NULL) {
+	if(decouple_trigger_thread == NULL)
+	{
 		decouple_trigger_thread = kthread_create(decouple_trigger_worker_thread, NULL, "decouple_trigger");
 		wake_up_process(decouple_trigger_thread);
 	}
 
-	if(disp_helper_get_stage() == DISP_HELPER_STAGE_NORMAL)
-	{
 		primary_path_aal_task =  kthread_create(_disp_primary_path_check_trigger, NULL, "display_check_aal");
 		wake_up_process(primary_path_aal_task);
 	}
 
-#if 0
-	fence_release_worker_task = kthread_create(_fence_release_worker_thread, NULL, "fence_worker");
-	wake_up_process(fence_release_worker_task);
-#endif
 	present_fence_release_worker_task = kthread_create(_present_fence_release_worker_thread, NULL, "present_fence_worker");
 	wake_up_process(present_fence_release_worker_task);
 
@@ -3747,51 +3944,21 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps)
     	wake_up_process(primary_display_frame_update_task);
     } 
 
+#if 1
 	if(primary_display_is_video_mode())
 	{
 		primary_display_idlemgr_init();
 	}
+#endif
 
-	
 	if(primary_display_is_video_mode())
 	{
-#ifdef DISP_SWITCH_DST_MODE
-		primary_display_cur_dst_mode = 1;
-		primary_display_def_dst_mode = 1;
-#endif
-		dpmgr_map_event_to_irq(pgc->dpmgr_handle, DISP_PATH_EVENT_IF_VSYNC, DDP_IRQ_RDMA0_DONE);
+		spm_enable_sodi(0);
 	}
 	else
 	{
-
+		spm_enable_sodi(1);
 	}
-
-	if(disp_helper_get_option(DISP_HELPER_OPTION_USE_M4U))
-	{
-		M4U_PORT_STRUCT sPort;
-		sPort.ePortID = M4U_PORT_DISP_WDMA0;
-		sPort.Virtuality = disp_helper_get_option(DISP_HELPER_OPTION_USE_M4U);
-		sPort.Security = 0;
-		sPort.Distance = 1;
-		sPort.Direction = 0;
-		ret = m4u_config_port(&sPort);
-		if (ret != 0) {
-			DISPCHECK("config M4U Port %s to %s FAIL(ret=%d)\n",
-				  ddp_get_module_name(DISP_MODULE_WDMA0),
-				  disp_helper_get_option(DISP_HELPER_OPTION_USE_M4U) ? "virtual" : "physical", ret);
-			return -1;
-		}
-	}
-
-	pgc->lcm_fps = lcm_fps;
-	if (lcm_fps > 6000) {
-		pgc->max_layer = 4;
-	} else {
-		pgc->max_layer = 4;
-	}
-	pgc->state = DISP_ALIVE;
-
-	primary_display_sodi_rule_init();
 
 	if(pgc->plcm->params->lcm_if != LCM_INTERFACE_DSI_DUAL)
 	{
@@ -3801,7 +3968,8 @@ int primary_display_init(char *lcm_name, unsigned int lcm_fps)
 
 	INIT_DELAYED_WORK(&dimdw, dim_wq_routine);
 
-done:
+	schedule_delayed_work(&dimdw, msecs_to_jiffies(1000));
+
 	dst_module = _get_dst_module_by_lcm(pgc->plcm);
 	if(dst_module == DISP_MODULE_DSIDUAL)
 	{
@@ -3815,8 +3983,7 @@ done:
 	enable_soidle_by_bit(MT_CG_DISP0_DISP_WDMA0);
 	enable_soidle_by_bit(MT_CG_DISP0_DISP_RDMA2);
 
-	_primary_path_unlock(__func__);
-	return ret;
+	return 0;
 }
 
 int primary_display_deinit(void)
@@ -4002,12 +4169,15 @@ int primary_display_suspend(void)
 	cancel_delayed_work_sync(&dimdw);
 
 	DISPCHECK("primary_display_suspend begin\n");
+
 	MMProfileLogEx(ddp_mmp_get_events()->primary_suspend, MMProfileFlagStart, 0, 0);
 #ifdef DISP_SWITCH_DST_MODE
 	primary_display_switch_dst_mode(primary_display_def_dst_mode);
 #endif
 	disp_sw_mutex_lock(&(pgc->capture_lock));
 	_primary_path_lock(__func__);
+
+	primary_display_idlemgr_kick(__func__, 0);
 	if(pgc->state == DISP_SLEEPED)
 	{
 		DISPCHECK("primary display path is already sleep, skip\n");
@@ -4069,6 +4239,18 @@ int primary_display_suspend(void)
 
 	DISPCHECK("[POWER]dpmanager path power off[begin]\n");
 	dpmgr_path_power_off(pgc->dpmgr_handle, CMDQ_DISABLE);
+
+	if(primary_display_is_decouple_mode())
+	{
+		if(pgc->ovl2mem_path_handle)
+		{
+			dpmgr_path_power_off(pgc->ovl2mem_path_handle, CMDQ_DISABLE);
+		}
+		else
+		{
+			DISPERR("display is decouple mode, but ovl2mem_path_handle is null\n");
+		}
+	}
 	DISPCHECK("[POWER]dpmanager path power off[end]\n");
 	MMProfileLogEx(ddp_mmp_get_events()->primary_suspend, MMProfileFlagPulse, 0, 8);
 
@@ -4107,6 +4289,7 @@ int primary_display_get_lcm_index(void)
 int primary_display_resume(void)
 {
 	DISP_STATUS ret = DISP_STATUS_OK;
+	DDP_SCENARIO_ENUM old_scenario, new_scenario;
 
 	DISPFUNC();
 	MMProfileLogEx(ddp_mmp_get_events()->primary_resume, MMProfileFlagStart, 0, 0);
@@ -4120,7 +4303,38 @@ int primary_display_resume(void)
 	MMProfileLogEx(ddp_mmp_get_events()->primary_resume, MMProfileFlagPulse, 0, 1);
 	
 	DISPCHECK("dpmanager path power on[begin]\n");
+
+	if(primary_display_is_decouple_mode())
+	{
+
+		if(pgc->ovl2mem_path_handle == NULL)
+		{
+			#if CONFIG_FOR_SOURCE_PQ
+			pgc->ovl2mem_path_handle = dpmgr_create_path(DDP_SCENARIO_PRIMARY_DITHER_MEMOUT, pgc->cmdq_handle_ovl1to2_config);
+			#else
+			pgc->ovl2mem_path_handle = dpmgr_create_path(DDP_SCENARIO_PRIMARY_OVL_MEMOUT, pgc->cmdq_handle_ovl1to2_config);
+			#endif
+		}
+
+		
+		
+
+			if(pgc->ovl2mem_path_handle)
+			{
+				DISPCHECK("dpmgr create ovl memout path SUCCESS(%p)\n", pgc->ovl2mem_path_handle);
+			}
+			else
+			{
+				DISPCHECK("dpmgr create path FAIL\n");
+				return -1;
+			}
+
+			dpmgr_path_set_video_mode(pgc->ovl2mem_path_handle, 0);
+			dpmgr_path_init(pgc->ovl2mem_path_handle, CMDQ_ENABLE);
+	}
+
 	dpmgr_path_power_on(pgc->dpmgr_handle, CMDQ_DISABLE);
+
 	DISPCHECK("dpmanager path power on[end]\n");
 	
 	MMProfileLogEx(ddp_mmp_get_events()->primary_resume, MMProfileFlagPulse, 0, 2);
@@ -4150,6 +4364,11 @@ int primary_display_resume(void)
 		ddp_disconnect_path(DDP_SCENARIO_PRIMARY_RDMA0_COLOR0_DISP, NULL);
 		
 		dpmgr_path_connect(pgc->dpmgr_handle, CMDQ_DISABLE);
+		if(primary_display_is_decouple_mode())
+		{
+			dpmgr_path_connect(pgc->ovl2mem_path_handle, CMDQ_DISABLE);
+		}
+
 		MMProfileLogEx(ddp_mmp_get_events()->primary_resume, MMProfileFlagPulse, 1, 2);
 		LCM_PARAMS *lcm_param = disp_lcm_get_params(pgc->plcm);
 
@@ -4182,8 +4401,57 @@ int primary_display_resume(void)
 
 		ret = dpmgr_path_config(pgc->dpmgr_handle, data_config, NULL);
 		MMProfileLogEx(ddp_mmp_get_events()->primary_resume, MMProfileFlagPulse, 2, 2);
-		data_config->dst_dirty = 0;
+
+		if(primary_display_is_decouple_mode())
+		{
+			
+			unsigned int mva = pgc->dc_buf[pgc->dc_buf_id];
+
+			data_config = dpmgr_path_get_last_config(pgc->dpmgr_handle);
+
+			data_config->rdma_config.address = mva;
+
+			data_config->rdma_config.height 			= lcm_param->height;
+			data_config->rdma_config.width 				= disp_helper_get_option(DISP_HELPER_OPTION_FAKE_LCM_WIDTH);
+			data_config->rdma_config.idx 				= 0;
+			data_config->rdma_config.inputFormat 		= eRGB888;
+			data_config->rdma_config.pitch 				= disp_helper_get_option(DISP_HELPER_OPTION_FAKE_LCM_WIDTH) * DP_COLOR_BITS_PER_PIXEL(eRGB888)/8;
+
+			
+			data_config->rdma_dirty = 1;
+			dpmgr_path_config(pgc->dpmgr_handle, data_config, NULL);
+
+			data_config = dpmgr_path_get_last_config(pgc->ovl2mem_path_handle);
+
+			data_config->dst_w = disp_helper_get_option(DISP_HELPER_OPTION_FAKE_LCM_WIDTH);
+			data_config->dst_h = lcm_param->height;
+
+			if(lcm_param->type == LCM_TYPE_DSI)
+			{
+				if(lcm_param->dsi.data_format.format == LCM_DSI_FORMAT_RGB888)
+					data_config->lcm_bpp = 24;
+				else if(lcm_param->dsi.data_format.format == LCM_DSI_FORMAT_RGB565)
+					data_config->lcm_bpp = 16;
+				else if(lcm_param->dsi.data_format.format == LCM_DSI_FORMAT_RGB666)
+					data_config->lcm_bpp = 18;
+			}
+			else if(lcm_param->type == LCM_TYPE_DPI)
+			{
+				if( lcm_param->dpi.format == LCM_DPI_FORMAT_RGB888)
+					data_config->lcm_bpp = 24;
+				else if( lcm_param->dpi.format == LCM_DPI_FORMAT_RGB565)
+					data_config->lcm_bpp = 16;
+				if( lcm_param->dpi.format == LCM_DPI_FORMAT_RGB666)
+					data_config->lcm_bpp = 18;
+			}
+
+			data_config->fps = pgc->lcm_fps;
+			data_config->dst_dirty = 1;
+
+			ret = dpmgr_path_config(pgc->ovl2mem_path_handle, data_config, NULL);
+		}
 	}
+
 	DISPCHECK("[POWER]dpmanager re-init[end]\n");
 	MMProfileLogEx(ddp_mmp_get_events()->primary_resume, MMProfileFlagPulse, 0, 3);
 
@@ -4277,6 +4545,14 @@ int primary_display_resume(void)
 	DISPCHECK("[POWER]wakeup aal/od trigger process[end]\n");
 #endif
 	pgc->state = DISP_ALIVE;
+
+	if(pgc->delay_switch_mode_needed)
+	{
+		DISPMSG("[DISPMODE]delay swtich to %s\n", session_mode_spy(pgc->delay_switch_mode));
+		int session_id = MAKE_DISP_SESSION(DISP_SESSION_PRIMARY,0);
+		ret = __primary_display_switch_mode(pgc->delay_switch_mode, session_id, 0, 1);
+		pgc->delay_switch_mode_needed = 0;
+	}
 
 done:
 	_primary_path_unlock(__func__);
@@ -4382,8 +4658,6 @@ int primary_display_trigger(int blocking, void *callback, int need_merge)
 {
 	int ret = 0;
 
-	primary_display_idlemgr_kick(__func__, 1);
-
 #ifdef DISP_SWITCH_DST_MODE
 	last_primary_trigger_time = sched_clock();
 	if(is_switched_dst_mode)
@@ -4395,6 +4669,7 @@ int primary_display_trigger(int blocking, void *callback, int need_merge)
 
 	primary_trigger_cnt++;
 	_primary_path_lock(__func__);
+	primary_display_idlemgr_kick(__func__, 0);
 
 	if(pgc->state == DISP_SLEEPED)
 	{
@@ -4663,12 +4938,14 @@ int primary_display_config_input_multiple(primary_disp_input_config* input)
 	int ret = 0;
 	int i=0;
 	int layer =0;
+	unsigned int wdma_mva = 0;
     disp_path_handle disp_handle = NULL;
     cmdqRecHandle cmdq_handle = NULL;
     disp_ddp_path_config *data_config = NULL;	
-	primary_display_idlemgr_kick(__func__, 1);
 
 	_primary_path_lock(__func__);
+
+	primary_display_idlemgr_kick(__func__, 0);
 
     if (primary_display_is_decouple_mode()){
 		disp_handle = pgc->ovl2mem_path_handle;
@@ -4740,7 +5017,7 @@ int primary_display_config_input_multiple(primary_disp_input_config* input)
                 cmdqBackupReadSlot(pgc->cur_config_fence, layer, &last_fence);
                 cur_fence = input_cfg->buff_idx;
 
-                if(cur_fence != -1 && cur_fence > last_fence)
+                if(cur_fence != -1 && cur_fence >= last_fence)
                     cmdqRecBackupUpdateSlot(cmdq_handle, pgc->cur_config_fence, layer, cur_fence);
 
                 
@@ -4761,7 +5038,27 @@ int primary_display_config_input_multiple(primary_disp_input_config* input)
 	if(primary_display_is_video_mode() && !primary_display_is_decouple_mode()) {
 	    cmdqRecBackupRegisterToSlot(cmdq_handle, pgc->ovl_status_info, 0,  disp_addr_convert(DISP_REG_OVL_STA));
 	}
+
+	if (primary_display_is_decouple_mode() && !primary_display_is_mirror_mode()){
+		pgc->dc_buf_id++;
+		pgc->dc_buf_id %= DISP_INTERNAL_BUFFER_COUNT;
+		wdma_mva = pgc->dc_buf[pgc->dc_buf_id];
+
+		WDMA_CONFIG_STRUCT tem_config = decouple_wdma_config;
+		tem_config.dstAddress = wdma_mva;
+#ifdef UFOE_MEMORY_OUT
+		tem_config.srcWidth /=3;
+		tem_config.clipWidth /=3;
+		tem_config.dstPitch /=3;
+#endif
+	_config_wdma_output(&tem_config,pgc->ovl2mem_path_handle, pgc->cmdq_handle_ovl1to2_config);
+	mem_config.addr = wdma_mva ;
+	MMProfileLogEx(ddp_mmp_get_events()->primary_wdma_config, MMProfileFlagPulse, pgc->dc_buf_id, wdma_mva);
+	}
 	
+	pgc->hwc_refresh_cnt++;
+	pgc->hwc_refresh_time= get_current_time_us();
+
 done:
 	_primary_path_unlock(__func__);
     	return ret;
@@ -4773,9 +5070,9 @@ int primary_display_config_input(primary_disp_input_config* input)
 	int i=0;
 	int layer =0;
 	
-	disp_ddp_path_config *data_config;	
-
-	primary_display_idlemgr_kick(__func__, 1);
+	disp_ddp_path_config *data_config;
+	disp_path_handle disp_handle = NULL;
+	cmdqRecHandle cmdq_handle = NULL;
 
 	
 	data_config = dpmgr_path_get_last_config(pgc->dpmgr_handle);
@@ -4785,7 +5082,20 @@ int primary_display_config_input(primary_disp_input_config* input)
 	data_config->wdma_dirty = 0;
 	
 	_primary_path_lock(__func__);
-	
+
+	primary_display_idlemgr_kick(__func__, 0);
+
+	if (primary_display_is_decouple_mode())
+	{
+		disp_handle = pgc->ovl2mem_path_handle;
+		cmdq_handle = pgc->cmdq_handle_ovl1to2_config;
+	}
+	else
+	{
+		disp_handle = pgc->dpmgr_handle;
+		cmdq_handle = pgc->cmdq_handle_config;
+	}
+
 	if(pgc->state == DISP_SLEEPED)
 	{
 		if(isAEEEnabled && input->layer == primary_display_get_option("ASSERT_LAYER"))
@@ -4826,7 +5136,36 @@ int primary_display_config_input(primary_disp_input_config* input)
 		dpmgr_wait_event_timeout(pgc->dpmgr_handle, DISP_PATH_EVENT_FRAME_DONE, HZ*1);
 	}
 	
-	ret = dpmgr_path_config(pgc->dpmgr_handle, data_config, primary_display_cmdq_enabled()?pgc->cmdq_handle_config:NULL);
+	ret = dpmgr_path_config(disp_handle, data_config, cmdq_handle);
+
+	
+	if(primary_display_is_video_mode() && !primary_display_is_decouple_mode()) {
+		cmdqRecBackupRegisterToSlot(cmdq_handle, pgc->ovl_status_info, 0,  disp_addr_convert(DISP_REG_OVL_STA));
+	}
+
+	if(primary_display_is_decouple_mode() && !primary_display_is_mirror_mode()) {
+		unsigned int wdma_mva;
+		pgc->dc_buf_id++;
+		pgc->dc_buf_id %= DISP_INTERNAL_BUFFER_COUNT;
+		wdma_mva = pgc->dc_buf[pgc->dc_buf_id];
+		decouple_wdma_config.dstAddress = wdma_mva;
+		_config_wdma_output(&decouple_wdma_config, disp_handle, cmdq_handle);
+
+		mem_config.addr = wdma_mva;
+		mem_config.buff_idx= -1;
+		mem_config.interface_idx = -1;
+		mem_config.security = DISP_NORMAL_BUFFER;
+		mem_config.pitch = decouple_wdma_config.dstPitch;
+		MMProfileLogEx(ddp_mmp_get_events()->primary_wdma_config, MMProfileFlagPulse, pgc->dc_buf_id, wdma_mva);
+	}
+
+	
+	if(primary_display_is_video_mode() && !primary_display_is_decouple_mode()) {
+		cmdqRecBackupRegisterToSlot(cmdq_handle, pgc->ovl_status_info, 0,  disp_addr_convert(DISP_REG_OVL_STA));
+	}
+	
+	pgc->hwc_refresh_cnt++;
+	pgc->hwc_refresh_time= get_current_time_us();
 
 	
 	pgc->need_trigger_overlay = 1;
@@ -4910,27 +5249,46 @@ int primary_display_user_cmd(unsigned int cmd, unsigned long arg)
 	return ret;
 }
 
-static int __primary_display_switch_mode(int sess_mode, unsigned int session, int need_lock)
+static int __primary_display_switch_mode(int sess_mode, unsigned int session, int need_lock, int force)
 {
 	int ret = 0, sw_only = 0;
+	
 	if(need_lock)
 	_primary_path_lock(__func__);
 
     MMProfileLogEx(ddp_mmp_get_events()->primary_switch_mode, MMProfileFlagStart, pgc->session_mode, sess_mode);
+
+	if(!force)
+	{
+		if(pgc->session_mode == DISP_SESSION_DECOUPLE_MIRROR_MODE && sess_mode == DISP_SESSION_DIRECT_LINK_MODE)
+		{
+			DISPMSG("[DISPMODE]hwc request exit decouple mirror mode\n");
+			
+			
+			sess_mode = DISP_SESSION_DECOUPLE_MODE;
+		}
+		else
+		{
+			goto done;
+		}
+
+	}
+
 	
+	if(pgc->state == DISP_SLEEPED)
+	{
+		DISPMSG("[DISPMODE]require %s to %s in suspend state!!!\n",
+			session_mode_spy(pgc->session_mode), session_mode_spy(sess_mode));
+		pgc->delay_switch_mode_needed = 1;
+		pgc->delay_switch_mode = sess_mode;
+
+		goto done;
+	}
+
 	if(pgc->session_mode == sess_mode)
 	{
 		goto done;
 	}
-
-	if(pgc->state == DISP_SLEEPED)
-	{
-	    DISPMSG("primary display switch from %s to %s in suspend state!!!\n", 
-				session_mode_spy(pgc->session_mode), session_mode_spy(sess_mode));
-        sw_only = 1;
-	}
-    
-	DISPMSG("primary display will switch from %s to %s\n", session_mode_spy(pgc->session_mode), session_mode_spy(sess_mode));
 
 	if(pgc->session_mode == DISP_SESSION_DIRECT_LINK_MODE &&  sess_mode == DISP_SESSION_DECOUPLE_MODE)
 	{
@@ -4946,39 +5304,46 @@ static int __primary_display_switch_mode(int sess_mode, unsigned int session, in
 		}
 
 		pgc->session_mode = sess_mode;
-		DISPMSG("primary display is %s mode now\n", session_mode_spy(pgc->session_mode));
 		MMProfileLogEx(ddp_mmp_get_events()->primary_switch_mode, MMProfileFlagPulse, pgc->session_mode, sess_mode);
 	}else if(pgc->session_mode == DISP_SESSION_DECOUPLE_MODE && sess_mode == DISP_SESSION_DIRECT_LINK_MODE){
         
 		DC_switch_to_DL_fast(sw_only);
         pgc->session_mode = sess_mode;
-		DISPMSG("primary display is %s mode now\n", session_mode_spy(pgc->session_mode));	
 		MMProfileLogEx(ddp_mmp_get_events()->primary_switch_mode, MMProfileFlagPulse, pgc->session_mode, sess_mode);
 		
 	}else if(pgc->session_mode == DISP_SESSION_DIRECT_LINK_MODE && sess_mode == DISP_SESSION_DIRECT_LINK_MIRROR_MODE){
         
         pgc->session_mode = sess_mode;
-		DISPMSG("primary display is %s mode now\n", session_mode_spy(pgc->session_mode));
 		MMProfileLogEx(ddp_mmp_get_events()->primary_switch_mode, MMProfileFlagPulse, pgc->session_mode, sess_mode);
 	}else if(pgc->session_mode == DISP_SESSION_DIRECT_LINK_MIRROR_MODE && sess_mode == DISP_SESSION_DIRECT_LINK_MODE){
         
         pgc->session_mode = sess_mode;
-		DISPMSG("primary display is %s mode now\n", session_mode_spy(pgc->session_mode));
 		MMProfileLogEx(ddp_mmp_get_events()->primary_switch_mode, MMProfileFlagPulse, pgc->session_mode, sess_mode);
     }else if(pgc->session_mode == DISP_SESSION_DIRECT_LINK_MODE && sess_mode == DISP_SESSION_DECOUPLE_MIRROR_MODE){
         
-        DL_switch_to_DC_fast(sw_only);        
+	DL_switch_to_DC_fast(sw_only);
+	pgc->session_mode = sess_mode;
+	MMProfileLogEx(ddp_mmp_get_events()->primary_switch_mode, MMProfileFlagPulse, pgc->session_mode, sess_mode);
+	
+    }else if(pgc->session_mode == DISP_SESSION_DECOUPLE_MODE && sess_mode == DISP_SESSION_DECOUPLE_MIRROR_MODE){
+        
+        
         pgc->session_mode = sess_mode;
-		DISPMSG("primary display is %s mode now\n", session_mode_spy(pgc->session_mode));
-		MMProfileLogEx(ddp_mmp_get_events()->primary_switch_mode, MMProfileFlagPulse, pgc->session_mode, sess_mode);
-		
+	MMProfileLogEx(ddp_mmp_get_events()->primary_switch_mode, MMProfileFlagPulse, pgc->session_mode, sess_mode);
+	
     }else if(pgc->session_mode == DISP_SESSION_DECOUPLE_MIRROR_MODE && sess_mode == DISP_SESSION_DIRECT_LINK_MODE){
         
         DC_switch_to_DL_fast(sw_only);
         pgc->session_mode = sess_mode;
-		DISPMSG("primary display is %s mode now\n", session_mode_spy(pgc->session_mode));	
 		MMProfileLogEx(ddp_mmp_get_events()->primary_switch_mode, MMProfileFlagPulse, pgc->session_mode, sess_mode);
 		
+    }else if(pgc->session_mode == DISP_SESSION_DECOUPLE_MIRROR_MODE && sess_mode == DISP_SESSION_DECOUPLE_MODE){
+	
+	int layer = 0;
+	layer = disp_sync_get_output_timeline_id();
+	mtkfb_release_layer_fence(primary_session_id, layer);
+	pgc->session_mode = sess_mode;
+	MMProfileLogEx(ddp_mmp_get_events()->primary_switch_mode, MMProfileFlagPulse, pgc->session_mode, sess_mode);
     }else{
         DISPERR("invalid mode switch from %s to %s\n", session_mode_spy(pgc->session_mode), session_mode_spy(sess_mode));
     }
@@ -4986,7 +5351,8 @@ done:
 	if(need_lock)
 	_primary_path_unlock(__func__);
     pgc->session_id = session;
-	    
+
+	
 	MMProfileLogEx(ddp_mmp_get_events()->primary_switch_mode, MMProfileFlagEnd, pgc->session_mode, sess_mode);
     return 0;
 }
@@ -4996,12 +5362,32 @@ int primary_display_switch_mode(int sess_mode, unsigned int session, int force)
 	int ret;
 	_primary_path_lock(__func__);
 	primary_display_idlemgr_kick(__func__, 0);
-	ret = __primary_display_switch_mode(sess_mode, session, 0);
+	ret = __primary_display_switch_mode(sess_mode, session, 0, force);
+
 	_primary_path_unlock(__func__);
 
 	return ret;
 }
 
+int primary_display_switch_mode_for_mmdvfs(int sess_mode, unsigned int session, int blocking)
+{
+	int ret;
+
+	DISPMSG("[mmdvfs] swtich to mode %d with %s begin\n", sess_mode, blocking?"blocking":"non-blocking");
+	_primary_path_lock(__func__);
+	primary_display_idlemgr_kick(__func__, 0);
+	ret = __primary_display_switch_mode(sess_mode, session, 0, 1);
+	_primary_path_unlock(__func__);
+
+	if(blocking)
+	{
+		msleep(20);
+	}
+
+	DISPMSG("[mmdvfs] swtich to mode %d with %s finished\n", sess_mode, blocking?"blocking":"non-blocking");
+
+	return ret;
+}
 
 int primary_display_is_alive(void)
 {
@@ -5238,7 +5624,16 @@ int primary_display_diagnose(void)
 	dpmgr_check_status(pgc->dpmgr_handle);
 
     if(primary_display_is_decouple_mode())
-		dpmgr_check_status(pgc->ovl2mem_path_handle);
+    {
+		if(pgc->ovl2mem_path_handle)
+		{
+			dpmgr_check_status(pgc->ovl2mem_path_handle);
+		}
+		else
+		{
+			DISPERR("display is decouple mode, but ovl2mem_path_handle is null\n");
+		}
+    }
 
 	primary_display_check_path(NULL, 0);
 	

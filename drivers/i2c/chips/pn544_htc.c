@@ -28,7 +28,6 @@ static unsigned int   pvdd_gpio = 0;
 int pn544_htc_check_rfskuid(int in_is_alive){
 #if NFC_READ_RFSKUID_MTK6795
 	int i;
-
 	for ( i = 2; i <= 9; i++) {
 		I("%s: get_sku_data(%d) = 0x%x\n",__func__,i,get_sku_data(i));
 		if (get_sku_data(i) == HAS_NFC_CHIP) {

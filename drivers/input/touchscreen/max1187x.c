@@ -3259,6 +3259,7 @@ static int hallsensor_status_handler_func(struct notifier_block *this,
 {
 	int pole = 0, pole_value = 0;
 	struct data *ts = gl_ts;
+	u16 data1[] = {0x0034, 0x0001, 0x0000};
 
 	pole_value = status & 0x01;
 	pole = (status & 0x02) >> HALL_POLE_BIT;
@@ -3282,6 +3283,10 @@ static int hallsensor_status_handler_func(struct notifier_block *this,
 				ts->glove_enable = 1;
 			if (PDATA(hall_block_touch_time) > 1)
 				max1187x_handle_block_touch(ts, 1);
+
+			if(PDATA(force_calibration_hall_near) && (!ts->i2c_to_mcu)) {
+				(void)send_mtp_command(ts, data1, NWORDS(data1));
+			}
 		}
 
 		if (!ts->i2c_to_mcu) {
@@ -3841,6 +3846,14 @@ static struct max1187x_pdata *max1187x_get_platdata_dt(struct device *dev)
 	} else {
 		pr_debug("No property: no_force_calibration");
 		pdata->no_force_calibration = false;
+	}
+
+	if(of_property_read_bool(devnode, "force_calibration_hall_near")) {
+		pr_info("Need force calibration while getting NEAR event from hall");
+		pdata->force_calibration_hall_near = true;
+	} else {
+		pr_debug("No property: force_calibration_hall_near");
+		pdata->force_calibration_hall_near = false;
 	}
 
 	

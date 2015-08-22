@@ -704,6 +704,10 @@ WLAN_STATUS wlanAdapterStop(IN P_ADAPTER_T prAdapter)
 						__func__,
                         kalIsCardRemoved(prAdapter->prGlueInfo),
 						fgIsBusAccessFailed, i));
+
+#if CFG_CHIP_RESET_SUPPORT
+					glResetTrigger(prAdapter);
+#endif
                     
                     break;
 				} else {

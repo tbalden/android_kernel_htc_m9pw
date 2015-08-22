@@ -4,11 +4,13 @@ dtb-$(CONFIG_ARCH_VEXPRESS) += rtsm_ve-aemv8a.dtb foundation-v8.dtb
 
 dtb-$(CONFIG_ARCH_MT6752) += mt6752_evb_64.dtb k2v1_64.dtb
 
+
 ifeq ($(CONFIG_ARCH_MTK_PROJECT),"hiau_ml")
 dtb-y += hiau_ml.dtb
 dtb-y += hiau_ml-XB.dtb
 dtb-y += hiau_ml-XC.dtb
 endif
+
 
 targets += dtbs
 

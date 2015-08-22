@@ -1407,14 +1407,6 @@ static void mt_battery_update_EM(struct battery_data *bat_data)
 	battery_xlog_printk(BAT_LOG_FULL, "status_smb = %d, capacity_smb = %d, present_smb = %d\n",
 			    bat_data->status_smb, bat_data->capacity_smb, bat_data->present_smb);
 
-    if( BMT_status.charger_exist == KAL_TRUE ){
-        if (BMT_status.UI_SOC == 100)
-            bat_data->BAT_STATUS = POWER_SUPPLY_STATUS_FULL;
-
-        if (fgauge_get_battery_id() == FG_ERROR_BATTERY)
-            bat_data->BAT_STATUS = POWER_SUPPLY_STATUS_UNKNOWN;
-    }
-
 	if ((bat_data->BAT_batt_temp > 650) && (BMT_status.keep_charger_on || BMT_status.flag_pa_fake_batt_temp))
 		bat_data->BAT_batt_temp = 650;
 
@@ -1482,6 +1474,8 @@ kal_int32 htc_battery_adjust_gap(kal_int32 gap, kal_int32 pre_soc, kal_int32 soc
         }
     }else
         gap = 0;
+
+	if (soc == BMT_status.UI_SOC) gap = 0;
 
 	last_gap = gap;
     return gap;
@@ -1704,9 +1698,6 @@ static void htc_battery_sync_ui_soc(struct battery_data *bat_data)
     }
 
     if( bIs_charging ){                     
-
-        bat_data->BAT_STATUS = POWER_SUPPLY_STATUS_CHARGING;
-
         if( BMT_status.bat_full )
             htc_battery_100Percent_tracking_check(&sUisoc_data);
 
@@ -1730,9 +1721,6 @@ static void htc_battery_sync_ui_soc(struct battery_data *bat_data)
         }
 
     }else if( BMT_status.bat_exist ){       
-
-        bat_data->BAT_STATUS = POWER_SUPPLY_STATUS_NOT_CHARGING;
-
         if( BMT_status.bat_vol >= htc_battery_0percent_volt(BMT_status.temperature_now) ){
 
             if( sUisoc_data.iUI_SOC > 0 ){  
@@ -1752,9 +1740,6 @@ static void htc_battery_sync_ui_soc(struct battery_data *bat_data)
                 sUisoc_data.iUI_SOC ++;
 
     }else{                                  
-
-        bat_data->BAT_STATUS = POWER_SUPPLY_STATUS_UNKNOWN;
-
         sUisoc_data.iUI_SOC = 0;
     }
     bat_set_ui_percentage(sUisoc_data.iUI_SOC);
@@ -1786,6 +1771,25 @@ static void htc_battery_update(struct battery_data *bat_data)
 
     mt_battery_update_EM(bat_data);
 
+	
+	if ((BMT_status.charger_exist == KAL_TRUE) && (BMT_status.bat_charging_state != CHR_ERROR)) {
+		if (BMT_status.bat_exist) {	
+			if (fgauge_get_battery_id() == FG_ERROR_BATTERY)
+				bat_data->BAT_STATUS = POWER_SUPPLY_STATUS_UNKNOWN;
+			else if (BMT_status.UI_SOC == 100)
+	            bat_data->BAT_STATUS = POWER_SUPPLY_STATUS_FULL;
+			else
+				bat_data->BAT_STATUS = POWER_SUPPLY_STATUS_CHARGING;
+		} else {
+			bat_data->BAT_STATUS = POWER_SUPPLY_STATUS_UNKNOWN;
+		}
+	} else {
+		if (BMT_status.bat_charging_state == CHR_ERROR)
+			bat_data->BAT_STATUS = POWER_SUPPLY_STATUS_DISCHARGING;
+		else
+			bat_data->BAT_STATUS = POWER_SUPPLY_STATUS_NOT_CHARGING;
+	}
+
     if (BMT_status.is_overload ||
 		((g_charger_ctrl_internal == DISABLE_PWRSRC_FINGERPRINT) && BMT_status.charger_exist)) {
         bat_data->BAT_STATUS = POWER_SUPPLY_STATUS_CHARGING;
@@ -1794,11 +1798,14 @@ static void htc_battery_update(struct battery_data *bat_data)
     if (cmd_discharging == 1) {
         bat_data->BAT_STATUS = POWER_SUPPLY_STATUS_CMD_DISCHARGING;
     }
+
+	
+
     if (adjust_power != -1) {
         bat_data->adjust_power = adjust_power;
         battery_xlog_printk(BAT_LOG_CRTI, "adjust_power=(%d)\n", adjust_power);
     }
-	if (BMT_status.bat_full)
+	if (BMT_status.bat_full && (BMT_status.SOC == 100))
 		BMT_status.htc_extension |= HTC_EXT_CHG_FULL_EOC_STOP;
 	else
 		BMT_status.htc_extension &= ~HTC_EXT_CHG_FULL_EOC_STOP;
@@ -2499,11 +2506,11 @@ void mt_battery_GetBatteryData(void)
 
 	battery_xlog_printk(BAT_LOG_CRTI,
 			    "AvgVbat=(%d),bat_vol=(%d),AvgI=(%d),I=(%d),VChr=(%d),AvgT=(%d),T=(%d),is_warm=(%d),pre_SOC=(%d),SOC=(%d),UI_SOC=(%d),ZCV=(%d),"
-			    "bat_charging_state=(0x%x),ftm_chg_ctrl=(%d),chg_ctrl=(%d),overload=(%d),mhl=(%d),chg_internal=(%d)\n",
+			    "bat_charging_state=(0x%x),ftm_chg_ctrl=(%d),chg_ctrl=(%d),overload=(%d),mhl=(%d),chg_internal=(%d),gap=(%d)\n",
 			    BMT_status.bat_vol, bat_vol, BMT_status.ICharging, ICharging,
 			    BMT_status.charger_vol, BMT_status.temperature, temperature, BMT_status.is_warm,
 			    previous_SOC, BMT_status.SOC, BMT_status.UI_SOC, BMT_status.ZCV, BMT_status.bat_charging_state,
-			    g_ftm_charger_ctrl_stat, charger_ctrl_stat, BMT_status.is_overload,g_chg_in_mhl,g_charger_ctrl_internal);
+			    g_ftm_charger_ctrl_stat, charger_ctrl_stat, BMT_status.is_overload,g_chg_in_mhl,g_charger_ctrl_internal,BMT_status.gap);
 
 
 
@@ -3012,19 +3019,38 @@ static void mt_battery_thermal_check(void)
 static void mt_battery_update_status(void)
 {
 	static int last_src = -1;
+	static int last_UI_SOC = -1;
+	static int last_temperature = -1;
+	static int last_bat_charging_state = -1;
+	static struct timespec last_ts;
+	struct timespec ts;
+	getnstimeofday(&ts);
+
 #if defined(CONFIG_POWER_EXT)
 	battery_xlog_printk(BAT_LOG_CRTI, "[BATTERY] CONFIG_POWER_EXT, no update Android.\n");
 #else
 	{
-		htc_battery_update(&battery_main);
-		if(BMT_status.charger_type != last_src){
-			wireless_update(&wireless_main);
-			ac_update(&ac_main);
-			usb_update(&usb_main);
+		battery_xlog_printk(BAT_LOG_FULL, "[BATTERY] time now: %lu. time last: %lu\n", ts.tv_sec, last_ts.tv_sec);
+		if(BMT_status.charger_type != last_src ||
+			BMT_status.UI_SOC != last_UI_SOC ||
+			BMT_status.temperature != last_temperature ||
+			BMT_status.bat_charging_state != last_bat_charging_state ||
+			(ts.tv_sec - last_ts.tv_sec >= 60)) {
+			battery_xlog_printk(BAT_LOG_FULL, "[BATTERY] Update uevent.\n");
+			getnstimeofday(&last_ts);
+			htc_battery_update(&battery_main);
+
+			if(BMT_status.charger_type != last_src){
+				wireless_update(&wireless_main);
+				ac_update(&ac_main);
+				usb_update(&usb_main);
+			}
 			last_src = BMT_status.charger_type;
+			last_UI_SOC = BMT_status.UI_SOC;
+			last_temperature = BMT_status.temperature;
+			last_bat_charging_state = BMT_status.bat_charging_state;
 		}
 	}
-
 #endif
 }
 
@@ -3832,7 +3858,7 @@ int charger_hv_detect_sw_thread_handler(void *unused)
 			if ((bat_vol > 4000) && (bat_curr < (-150)) && (htc_battery_CharegerControlCheck() == PMU_STATUS_OK)) {
 				g_force_reverse_boost_wa = KAL_TRUE;
 			}
-			if ((bat_curr < 700) && (bat_curr > 0)) {
+			if ((bat_curr < 700) && (bat_curr > 0) && !BMT_status.is_warm && (bat_vol > 4330)) {
 				full_check++;
 			} else {
 				full_check = 0;
@@ -4192,12 +4218,10 @@ static ssize_t htc_battery_over_vchg(struct device *dev,
 {
 	int i = 0, is_ovp = 0;
 
-#if defined(HIAUML_BATT)
 		if(of_machine_hwid() < 2){
 			i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n", is_ovp);
 			return i;
 		}
-#endif
 
 	int value = __gpio_get_value(_ovp_det_gpio);
 
@@ -4416,12 +4440,10 @@ static int htc_ovp_det_init(struct platform_device *dev)
 	const char * eint_str = "mediatek, OVP_DET-eint";
 	int rc = -1;
 
-#if defined(HIAUML_BATT)
 	if(of_machine_hwid() < 2){
 		battery_xlog_printk(BAT_LOG_CRTI, "XA/XB not support OVP.\n");
 		return 0;
 	}
-#endif
 
 	if(gpio_is_valid(_ovp_det_gpio)) {
 		rc = gpio_request_one(_ovp_det_gpio, GPIOF_IN, "ovp_det");

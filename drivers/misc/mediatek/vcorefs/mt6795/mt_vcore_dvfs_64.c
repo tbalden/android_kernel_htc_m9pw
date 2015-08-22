@@ -209,7 +209,7 @@ static atomic_t kthread_nreq = ATOMIC_INIT(0);
 static DEFINE_MUTEX(vcorefs_mutex);
 
 
-static u32 get_vcore_pdn(void)
+u32 get_vcore_pdn(void)
 {
 	u32 vcore_pdn = VCORE_INVALID;
 
@@ -344,6 +344,10 @@ static int set_faxi_fxxx_with_opp(struct pwr_ctrl *pwrctrl, struct dvfs_opp *opp
 	if (opp->axi_khz == pwrctrl->curr_axi_khz || !pwrctrl->axi_dfs)
 		return 0;
 
+#ifdef MMDVFS_MMCLOCK_NOTIFICATION
+	mmdvfs_mm_clock_switch_notify(1, opp->axi_khz > FAXI_S2_KHZ ? 1 : 0);
+#endif
+
 	
 	clkmux_sel_for_vcorefs(opp->axi_khz > FAXI_S2_KHZ ? true : false);
 
@@ -351,6 +355,10 @@ static int set_faxi_fxxx_with_opp(struct pwr_ctrl *pwrctrl, struct dvfs_opp *opp
 	pwrctrl->curr_mm_khz = opp->mm_khz;
 	pwrctrl->curr_venc_khz = opp->venc_khz;
 	pwrctrl->curr_vdec_khz = opp->vdec_khz;
+
+#ifdef MMDVFS_MMCLOCK_NOTIFICATION
+	mmdvfs_mm_clock_switch_notify(0, opp->axi_khz > FAXI_S2_KHZ ? 1 : 0);
+#endif
 
 	return 0;
 }
@@ -1214,4 +1222,4 @@ static int __init vcorefs_module_init(void)
 module_init(vcorefs_module_init);
 late_initcall_sync(late_init_to_lowpwr_opp);
 
-MODULE_DESCRIPTION("Vcore DVFS Driver v0.7");
+MODULE_DESCRIPTION("Vcore DVFS Driver v0.8");

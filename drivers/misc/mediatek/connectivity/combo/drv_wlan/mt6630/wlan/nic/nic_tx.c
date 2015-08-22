@@ -120,6 +120,7 @@ VOID nicTxInitialize(IN P_ADAPTER_T prAdapter)
 
     TX_RESET_ALL_CNTS(prTxCtrl);
 
+    prTxCtrl->u4ConsecutiveNoResouceCnt = 0;
     return;
 } 
 
@@ -209,6 +210,23 @@ WLAN_STATUS nicTxAcquireResource(IN P_ADAPTER_T prAdapter, IN UINT_8 ucTC, IN UI
    
     KAL_RELEASE_SPIN_LOCK(prAdapter, SPIN_LOCK_TX_RESOURCE);
 
+    if(u4Status == WLAN_STATUS_RESOURCES) {
+        prTxCtrl->u4ConsecutiveNoResouceCnt++;
+        DBGLOG(TX, WARN, ("NO Res au2FreePageCount[%d] = %u, NoRes Cnt %u  \n",
+			ucTC,
+			prTxCtrl->rTc.au2FreePageCount[ucTC],
+			prTxCtrl->u4ConsecutiveNoResouceCnt ));
+        if(prTxCtrl->u4ConsecutiveNoResouceCnt > NIC_TX_NO_RESOURCE_THRESHOLD) {
+            DBGLOG(TX, WARN, ("NO TX Res cnt meets threshold trigger whole chip reset   \n"));
+            qmDumpQueueStatus(prAdapter);
+#if CFG_CHIP_RESET_SUPPORT
+            glResetTrigger(prAdapter);
+#endif
+        }
+    }
+    else {
+        prTxCtrl->u4ConsecutiveNoResouceCnt = 0;
+    }
     return u4Status;
 
 }				

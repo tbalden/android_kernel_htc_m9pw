@@ -204,6 +204,7 @@ typedef struct
 typedef int (*PRIMARY_DISPLAY_CALLBACK)(unsigned int user_data);
 
 int primary_display_init(char *lcm_name, unsigned int lcm_fps);
+int primary_display_post_init(void);
 int primary_display_config(unsigned int pa, unsigned int mva);
 
 int primary_display_set_frame_buffer_address(unsigned long va,unsigned long mva);
@@ -289,10 +290,11 @@ int primary_display_setlcm_cmd(unsigned int *lcm_cmd,unsigned int *lcm_count,uns
 void primary_display_update_present_fence(unsigned int fence_idx);
 
 
-static int __primary_display_switch_mode(int sess_mode, unsigned int session, int need_lock);
+static int __primary_display_switch_mode(int sess_mode, unsigned int session, int need_lock, int force);
 
 int primary_display_switch_esd_mode(int mode);
 int primary_display_cmdq_set_reg(unsigned int addr, unsigned int val);
+int primary_display_switch_mode_for_mmdvfs(int sess_mode, unsigned int session, int blocking);
 
 #endif
 

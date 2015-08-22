@@ -704,15 +704,6 @@ static int smi_bwc_config( MTK_SMI_BWC_CONFIG* p_conf , unsigned int *pu4LocalCn
         return 0;
     }
 
-    spin_lock(&g_SMIInfo.SMI_lock);
-    result = fake_mode_handling(p_conf, pu4LocalCnt);
-    spin_unlock(&g_SMIInfo.SMI_lock);
-
-    
-    if (result == 1) {
-        return 0;
-    }
-
     if((SMI_BWC_SCEN_CNT <= p_conf->scenario) || (0 > p_conf->scenario)) {
         SMIERR("Incorrect SMI BWC config : 0x%x, how could this be...\n" , p_conf->scenario);
         return -1;
@@ -724,7 +715,17 @@ static int smi_bwc_config( MTK_SMI_BWC_CONFIG* p_conf , unsigned int *pu4LocalCn
 		mmdvfs_notify_scenario_enter(p_conf->scenario);   		
 	} else {
 		
-		mmdvfs_notify_scenario_exit(p_conf->scenario);		
+		mmdvfs_notify_scenario_exit(p_conf->scenario);
+	}
+
+	spin_lock(&g_SMIInfo.SMI_lock);
+	result = fake_mode_handling(p_conf, pu4LocalCnt);
+	spin_unlock(&g_SMIInfo.SMI_lock);
+
+	
+	if (result == 1) {
+	   return 0;
+
 	}
 
     spin_lock(&g_SMIInfo.SMI_lock);

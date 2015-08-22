@@ -36,9 +36,9 @@
 #define FALSE (0)
 #endif
 
-#define PWM_MIN 0x5
-#define PWM_DEFAULT 0x41
-#define PWM_MAX 0xD4
+#define PWM_MIN 6
+#define PWM_DEFAULT 57
+#define PWM_MAX 213
 
 static const unsigned int BL_MIN_LEVEL = 20;
 static LCM_UTIL_FUNCS lcm_util;
@@ -353,6 +353,56 @@ static struct LCM_setting_table lcm_initialization_setting[] =
 	{REGFLAG_DELAY, 5, {}},
 
 	
+	
+	{0x55, 1, {0x02}},
+
+	
+	{REGFLAG_DELAY, 5, {}},
+
+	{0xBD,  1, {0x00}},
+	{REGFLAG_DELAY, 1, {}},
+
+	{0xCE,  2, {0x24, 0x06}},
+
+	
+	{0xE4, 63, {0x6C, 0x01, 0x2C, 0x00,
+				0x08, 0x00, 0x14, 0x10,
+				0x00, 0x04, 0xCD, 0xF3,
+				0x1A, 0x40, 0x66, 0x8C,
+				0xB2, 0xDE, 0xFF, 0xFA,
+				0xFF, 0x03, 0x00, 0x10,
+				0x20, 0x20, 0x01, 0x00,
+				0x10, 0x80, 0x00, 0x00,
+				0x90, 0x10, 0x10, 0x10,
+				0x10, 0x00, 0x02, 0x00,
+				0x00, 0x20, 0x10, 0x10,
+				0x80, 0x00, 0x00, 0xD0,
+				0x20, 0x20, 0x20, 0x20,
+				0x00, 0x00, 0x04, 0x1B,
+				0x00, 0x00, 0x00, 0x80,
+				0x0C, 0x40, 0xFF}},
+	{REGFLAG_DELAY, 1, {}},
+	{0xBD,  1, {0x01}},
+	{REGFLAG_DELAY, 1, {}},
+
+	
+	{0xE4, 41, {0x00, 0x77, 0xFF, 0x87,
+				0xEF, 0x93, 0x53, 0x24,
+				0xFF, 0xE1, 0xC8, 0xB2,
+				0xA3, 0x94, 0x85, 0x76,
+				0x68, 0x5B, 0x4E, 0x42,
+				0x37, 0x2C, 0x23, 0x1A,
+				0x13, 0x0D, 0x08, 0x04,
+				0x02, 0x01, 0x00, 0x00,
+				0x00, 0xBC, 0x6A, 0x55,
+				0x55, 0x55, 0x55, 0x55,
+				0x55}},
+	{REGFLAG_DELAY, 1, {}},
+	{0xBD, 1, {0x00}},
+	{REGFLAG_DELAY, 1, {}},
+	
+
+	
 	{0x29,  1, {0x00}},
 	{REGFLAG_DELAY, 10, {}},
 
@@ -453,7 +503,7 @@ static void lcm_get_params(LCM_PARAMS *params)
 	params->dsi.PS = LCM_PACKED_PS_24BIT_RGB888;
 	params->dsi.vertical_sync_active = 2;
 	params->dsi.vertical_backporch = 6;
-	params->dsi.vertical_frontporch	= 23; 
+	params->dsi.vertical_frontporch	= 123;
 	params->dsi.vertical_active_line = FRAME_HEIGHT;
 	params->dsi.horizontal_sync_active = 32;
 	params->dsi.horizontal_backporch = 32;
@@ -463,7 +513,7 @@ static void lcm_get_params(LCM_PARAMS *params)
 	params->dsi.ufoe_enable = 1;
 	params->dsi.ufoe_params.lr_mode_en = 1;
 
-	params->dsi.vertical_frontporch_for_low_power = 217;
+	
 
 	params->dsi.esd_check_enable = 1;
 	params->dsi.customization_esd_check_enable = 0;
@@ -498,10 +548,10 @@ static void lcm_get_params(LCM_PARAMS *params)
 	}
 
 	params->pwm_min = 6;
-	params->pwm_default = 65; 
+	params->pwm_default = 57;
 	params->pwm_max = 213;
-	params->camera_blk = 199;
-	params->camera_dua_blk = 199;
+	params->camera_blk = 203;
+	params->camera_dua_blk = 203;
 	params->dim_cmd = 0x2c;
 }
 

@@ -3365,7 +3365,7 @@ static int __init init(void)
 	static char cid[64] = "";
 
 	strcpy(cid, htc_get_cid());
-	if (!strcmp(htc_get_bootmode(),"factory2") || !strcmp(htc_get_bootmode(),"meta") || !strcmp(htc_get_bootmode(),"ftm")) {
+	if (!strcmp(htc_get_bootmode(),"factory2") || !strcmp(htc_get_bootmode(),"meta") || !strcmp(htc_get_bootmode(),"ftm") || !strcmp(htc_get_bootmode(),"RUU")) {
 		spcf_flag = 2;
 		usb_sim_trigger =1;
 		printk(KERN_WARNING "[USB][%s] got Internal Mode, set usb_sim_trigger=%d, spcf_flag=%d\n", __func__, usb_sim_trigger, spcf_flag);

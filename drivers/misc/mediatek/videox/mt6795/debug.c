@@ -1,4 +1,4 @@
-#include <linux/string.h>
+
 #include <linux/time.h>
 #include <linux/uaccess.h>
 #include <linux/fb.h>
@@ -30,6 +30,7 @@
 #include "cmdq_record.h"
 #include "cmdq_reg.h"
 #include "cmdq_core.h"
+#include <mach/mt_vcore_dvfs.h>
 
 struct MTKFB_MMP_Events_t MTKFB_MMP_Events;
 
@@ -558,7 +559,14 @@ static void process_dbg_opt(const char *opt)
 		int session_id = MAKE_DISP_SESSION(DISP_SESSION_PRIMARY,0);
 		char *p = (char *)opt + 12;
         unsigned long sess_mode = simple_strtoul(p, &p, 10);
-		primary_display_switch_mode(sess_mode, session_id, 1);
+		if(sess_mode == DISP_SESSION_DECOUPLE_MODE)
+		{
+			primary_display_switch_mode_for_mmdvfs(sess_mode, session_id, 1);
+		}
+		else if(sess_mode == DISP_SESSION_DIRECT_LINK_MODE)
+		{
+			primary_display_switch_mode_for_mmdvfs(sess_mode, session_id, 0);
+		}
 	}
 	else if (0 == strncmp(opt, "dsipattern", 10))
 	{

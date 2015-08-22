@@ -2323,7 +2323,7 @@ static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 
 		if (req)
 			blk_end_request_all(req, -EIO);
-		return 0;
+		goto out;
 	}
 
 	if (req && !mq->mqrq_prev->req)

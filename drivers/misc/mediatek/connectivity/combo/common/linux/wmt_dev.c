@@ -94,6 +94,7 @@ static void wmt_dev_early_suspend(struct early_suspend *h)
     if (MTK_WCN_BOOL_FALSE == mtk_wcn_wmt_func_off(WMTDRV_TYPE_LPBK)) {
         WMT_WARN_FUNC("WMT turn off LPBK fail\n");
     } else {
+	wmt_lib_notify_stp_sleep();
 	WMT_INFO_FUNC("WMT turn off LPBK suceed");
     }
 }
@@ -141,6 +142,7 @@ static INT32 wmt_pwr_on_thread (void *pvData)
 		}
 		else
 		{
+			wmt_lib_notify_stp_sleep();
 			WMT_INFO_FUNC("WMT turn on LPBK suceed");
 			break;
 		}
@@ -187,6 +189,7 @@ static INT32 mtk_wmt_func_off_background(void)
 	}
 	else
 	{
+		wmt_lib_notify_stp_sleep();
 		WMT_INFO_FUNC("WMT turn off LPBK suceed");
 	}
 	return 0;

@@ -4,6 +4,7 @@
  * Copyright 2005 Phil Blundell
  * Copyright 2010, 2011 David Jander <david@protonic.nl>
  * Copyright (C) 2014 HTC Corporation.  All rights reserved.
+ * Copyright (c) 2015 Pal Zoltan Illes - fingerprint_mod
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -36,6 +37,11 @@
 
 #if defined(MTK_PLATFORM)
 #include <mach/mt_gpio.h>
+#endif
+
+#ifdef CONFIG_FINGERPRINT_MOD
+// tbalden
+#include <linux/input/fpc1020_inc.h>
 #endif
 
 enum {
@@ -961,7 +967,15 @@ static int gpio_keys_probe(struct platform_device *pdev)
 	input->id.product = 0x0001;
 	input->id.version = 0x0100;
 
-	
+#ifdef CONFIG_FINGERPRINT_MOD
+// tbalden
+    if (!strcmp(input->name, "gpio-keys")) {
+	power_onoff_setdev_capture(input);
+	power_onoff_setdev_input(input);
+	printk(KERN_ERR "tb [fingerprint sleep]: set device %s\n", input->name);
+    }
+#endif
+
 	if (pdata->rep)
 		__set_bit(EV_REP, input->evbit);
 

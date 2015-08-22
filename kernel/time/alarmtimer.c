@@ -734,7 +734,7 @@ static void alarm_shutdown(struct platform_device *dev)
 	pr_info("Shutdown start...\n");
 
 	offmode_alarm = find_offmode_alarm();
-	if (offmode_alarm > 0) {
+
 		alarm_dbg(INFO, "set offmode alarm(%u)\n", offmode_alarm);
  #ifdef RTC_PWRON_SEC
          
@@ -757,7 +757,7 @@ static void alarm_shutdown(struct platform_device *dev)
          rtc_timer_cancel(alarm_rtc_dev, &rtctimer);
          rtc_set_alarm(alarm_rtc_dev, &rtc_alarm);
          rtc_set_alarm_poweron(alarm_rtc_dev, &rtc_alarm);
-	}
+
 }
 
 static const struct dev_pm_ops alarmtimer_pm_ops = {

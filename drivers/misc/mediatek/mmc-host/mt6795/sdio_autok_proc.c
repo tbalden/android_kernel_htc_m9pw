@@ -9,8 +9,6 @@
 #include "mach/mt_boot_common.h"
 #include "mt_sd.h"
 #include "sdio_autok.h"
-//#include "mt_sd_func.h"
-//#include "autok.h"
 #include <linux/kobject.h>
 #include <linux/string.h>
 #include <linux/sysfs.h>
@@ -19,27 +17,23 @@
 #include <linux/delay.h>
 #include <linux/scatterlist.h>
 #include <linux/debugfs.h>
-#include <linux/mm.h>  /* mmap related stuff */
-#include <linux/slab.h> /* kmalloc/kfree/kzalloc */
+#include <linux/mm.h>  
+#include <linux/slab.h> 
 #include <mach/mtk_wcn_cmb_stub.h>
 #define AUTOK_THREAD
 #define MAX_ARGS_BUF    2048
 extern struct msdc_host *mtk_msdc_host[];
 
 #define DEVNAME_SIZE 80
-//#define UT_TEST
 
 static struct kobject *autok_kobj;
-//stage1 kobjects
 static struct kobject *stage1_kobj;
 static struct kobject **s1_host_kobj;
 static struct attribute **stage1_attrs;
 static struct kobj_attribute **stage1_kattr;
-// stage2 kobjects
 static struct kobject *stage2_kobj;
 struct attribute **stage2_attrs;
 struct kobj_attribute **stage2_kattr;
-// host kobjects
 struct attribute **host_attrs;
 struct kobj_attribute **host_kattr;
 
@@ -65,7 +59,7 @@ enum HOST_NODES {
 };
 const char host_nodes[][DEVNAME_SIZE] = {"ready", "debug", "param_count", "ss_corner", "suggest_vol"};
 #ifdef UT_TEST
-u8 is_first_stage1 = 1;     // UT usage
+u8 is_first_stage1 = 1;     
 #endif
 
 #ifndef MTK_SDIO30_ONLINE_TUNING_SUPPORT
@@ -83,13 +77,10 @@ static unsigned int suggest_vol_count = 0;
 int send_autok_uevent(char *text, struct msdc_host *host);
 int autok_abort_action(void);
 #ifdef AUTOK_THREAD
-//#define msdc_dma_status() ((sdr_read32(MSDC_CFG) & MSDC_CFG_PIO) >> 3)
 #define msdc_dma_on()        sdr_clr_bits(MSDC_CFG, MSDC_CFG_PIO)
 #define msdc_dma_off()       sdr_set_bits(MSDC_CFG, MSDC_CFG_PIO)
 #define msdc_dma_status()    ((sdr_read32(MSDC_CFG) & MSDC_CFG_PIO) >> 3)
-//extern void mt_cpufreq_disable(unsigned int type, bool disabled);
 
-//struct mmc_host *mmc;
 struct sdio_autok_thread_data *p_autok_thread_data;
 struct task_struct *task;
 
@@ -97,12 +88,10 @@ u32 *cur_voltage;
 
 static int fake_sdio_device(void *data);
 struct task_struct *task2;
-// Auto-K Thread function
 extern volatile int sdio_autok_processed;
 
 extern unsigned int autok_get_current_vcore_offset(void);
 #ifdef CONFIG_SDIOAUTOK_SUPPORT
-//extern void mt_cpufreq_disable(unsigned int type, bool disabled);
 extern void mt_vcore_dvfs_disable_by_sdio(unsigned int type, bool disabled);
 #endif
 
@@ -124,7 +113,6 @@ void autok_release_host(struct msdc_host *host)
     pr_debug("[%s] msdc%d host released\n", __func__, host->id);
 }
 
-/* keep track of how many times it is mmapped */
 void autok_mmap_open(struct vm_area_struct *vma)
 {
     struct log_mmap_info *info = (struct log_mmap_info *)vma->vm_private_data;
@@ -137,16 +125,13 @@ void autok_mmap_close(struct vm_area_struct *vma)
     info->reference--;
 }
 
-/* nopage is called the first time a memory area is accessed which is not in memory,
- * it does the actual mapping between kernel and user space memory
- */
 int autok_mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
     unsigned long offset;
     struct log_mmap_info *dev = vma->vm_private_data;
     int result = VM_FAULT_SIGBUS;
     struct page *page;
-    //void *pageptr = NULL; /* default to "missing" */ 
+    
     pgoff_t pgoff = vmf->pgoff;  
     offset = (pgoff << PAGE_SHIFT) + (vma->vm_pgoff << PAGE_SHIFT);
     if (!dev->data) {
@@ -155,8 +140,8 @@ int autok_mmap_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
     }
     if (offset >= dev->size)
         return 0;
-    //offset >>= PAGE_SHIFT; /* offset is a number of pages */  
-    /* got it, now convert pointer to a struct page and increment the count */
+    
+    
     page = virt_to_page(&dev->data[offset]);
     get_page(page);
     vmf->page = page;
@@ -176,7 +161,7 @@ int autok_log_mmap(struct file *filp, struct vm_area_struct *vma)
 {
     vma->vm_ops = &autok_mmap_vm_ops;
     vma->vm_flags |= (VM_DONTEXPAND | VM_DONTDUMP);
-    /* assign the file private data to the vm private data */
+    
     vma->vm_private_data = filp->private_data;
     autok_mmap_open(vma);
     return 0;
@@ -185,7 +170,7 @@ int autok_log_mmap(struct file *filp, struct vm_area_struct *vma)
 int autok_log_close(struct inode *inode, struct file *filp)
 {   
     struct log_mmap_info *info = filp->private_data;
-    /* obtain new memory */
+    
     kfree(autok_log_info);
     kfree(info);
     filp->private_data = NULL;
@@ -196,9 +181,9 @@ int autok_log_close(struct inode *inode, struct file *filp)
 int autok_log_open(struct inode *inode, struct file *filp)
 {
     struct log_mmap_info *info = kmalloc(sizeof(struct log_mmap_info), GFP_KERNEL);
-    /* obtain new memory */
+    
         
-    /* assign this info struct to the file */
+    
     info->size = LOG_SIZE;
     info->data = autok_log_info;
     filp->private_data = info;
@@ -213,25 +198,20 @@ static const struct file_operations autok_log_fops = {
 
 static int autok_calibration_done(int id, struct sdio_autok_thread_data *autok_thread_data)
 {
-    //int err=0;
-    //char cali_done[80] = "CALI_DONE";
+    
+    
     if (autok_thread_data->is_autok_done[id] == 0)
         autok_thread_data->is_autok_done[id] = 1;
-    /*err = send_autok_uevent(cali_done, autok_thread_data->host);
-    if(err < 0)
-        return err;
-    */
     return 0;
 }
 #include <linux/time.h>
-//static DEFINE_SPINLOCK(autok_lock);
 extern char *log_info;
 extern int total_msg_size;
 extern void msdc_sdio_set_long_timing_delay_by_freq(struct msdc_host *host, u32 clock);
 static int autok_thread_func(void *data)
 {
     struct sdio_autok_thread_data *autok_thread_data;
-    //struct sched_param param = { .sched_priority = 99 };
+    
     unsigned int vcore_uv = 0;
     struct msdc_host *host;
     struct mmc_host *mmc;
@@ -243,11 +223,9 @@ static int autok_thread_func(void *data)
     u32 dma;
     struct timeval t0,t1;
     int time_in_s, time_in_ms;
-//    unsigned long flags;
     
     autok_thread_data = (struct sdio_autok_thread_data *)data;
-    //sched_setscheduler(current, SCHED_FIFO, &param);    
-//    preempt_disable();
+    
     	
   	host = autok_thread_data->host;
     mmc = host->mmc;
@@ -255,25 +233,25 @@ static int autok_thread_func(void *data)
     base = host->base;
     dma = msdc_dma_status();
         
-    // Inform msdc_set_mclk() auto-K is going to process
+    
     sdio_autok_processed = 1;
         
-    // Set clock to card max clock
+    
     mmc_set_clock(mmc, mmc->ios.clock);
     msdc_sdio_set_long_timing_delay_by_freq(host, mmc->ios.clock);
         
     msdc_ungate_clock(host);
        
-    // Set PIO mode
+    
     msdc_dma_off();
     
     vcore_uv = autok_get_current_vcore_offset();
-    // End of initialize
+    
     do_gettimeofday(&t0); 
     if(autok_thread_data->log != NULL)
         log_info = autok_thread_data->log; 
     if(stage == 1) {
-        // call stage 1 auto-K callback function
+        
         autok_thread_data->is_autok_done[host->id] = 0;
         res = msdc_autok_stg1_cal(host, vcore_uv, autok_thread_data->p_autok_predata);
         if(res){
@@ -281,14 +259,14 @@ static int autok_thread_func(void *data)
             memset(autok_thread_data->p_autok_predata->ai_data[0], 0, autok_thread_data->p_autok_predata->param_count * sizeof(unsigned int));
             autok_thread_data->is_autok_done[host->id] = 2;
         }
-        // For Abort function
+        
         if(atomic_read(&autok_is_abort) == 1){
             autok_thread_data->is_autok_done[host->id] = 3;
         }
     } else if(stage == 2) {
-        // call stage 2 auto-K callback function
         
-        // check if msdc params of different volt are all 0, if so, that means auto-K stg1 failed
+        
+        
         for(i=0; i<autok_thread_data->p_autok_predata->vol_count; i++){
             for(j=0; j<autok_thread_data->p_autok_predata->param_count; j++){
                 if(autok_thread_data->p_autok_predata->ai_data[i][j].data.sel != 0){
@@ -316,7 +294,7 @@ static int autok_thread_func(void *data)
                     }
                 }
             }
-        } else {    // Auto-K stg1 failed
+        } else {    
             pr_debug("[%s] Auto-K stage 1 fail, downgrade SDIO freq to 50MHz\n", __func__); 
             mmc->ios.clock = 50*1000*1000;
             mmc_set_clock(mmc, mmc->ios.clock);
@@ -334,7 +312,7 @@ static int autok_thread_func(void *data)
         log_info = NULL;
     } else {
         pr_debug("[%s] stage %d doesn't support in auto-K\n", __func__, stage);
-        //return -EFAULT;
+        
     }
     do_gettimeofday(&t1);
     if(dma == DMA_ON)
@@ -342,7 +320,7 @@ static int autok_thread_func(void *data)
     
     msdc_gate_clock(host,1);
     
-    // [FIXDONE] Tell native module that auto-K has finished
+    
     if(stage == 1)
         autok_calibration_done(host->id, autok_thread_data);
     else if(stage == 2){
@@ -360,7 +338,6 @@ static int autok_thread_func(void *data)
     time_in_ms = (t1.tv_usec - t0.tv_usec)>>10;
     pr_err("\n[AUTOKK][Stage%d] Timediff is %d.%d(s)\n", (int)stage, time_in_s, time_in_ms );
     
-//    preempt_enable();
     return 0;
 }
 #endif
@@ -371,7 +348,7 @@ int send_autok_uevent(char *text, struct msdc_host *host)
     char *envp[3];
     char *host_buf;
     char *what_buf;
-    //struct msdc_host *host = mtk_msdc_host[id];
+    
     host_buf = kzalloc(sizeof(char)*128, GFP_KERNEL);
     what_buf = kzalloc(sizeof(char)*128, GFP_KERNEL);
     
@@ -392,7 +369,6 @@ int send_autok_uevent(char *text, struct msdc_host *host)
     return err;
 }   
 
-// CALLBACK for device wait
 extern BOOTMODE get_boot_mode(void);
 bool is_autok_lifecycle_before = false;
 int wait_sdio_autok_ready(void *data){
@@ -409,26 +385,26 @@ int wait_sdio_autok_ready(void *data){
     struct msdc_host *host = NULL;
     
     btmod = get_boot_mode();
-    //pr_debug("btmod = %d\n", btmod);
+    
     atomic_set(&autok_is_abort, 0);
     if((vcorefs_sdio_need_multi_autok()) && (btmod == META_BOOT))
         return 0;
     if((btmod != NORMAL_BOOT) && (btmod != META_BOOT))
         return 0;
-    if (1/*(btmod!=META_BOOT)*/){
+    if (1){
         sdio_host_debug = 0;
-        //host = mtk_msdc_host[id];
+        
         host = mmc_priv(mmc);
         id = host->id;
 #ifndef UT_TEST
-        // claim host   
+        
         #ifdef CONFIG_SDIOAUTOK_SUPPORT   
-        //mt_cpufreq_disable(0, true);
+        
 
-        // If it's screen off, sdio add suggest vol with LV        
+        
         is_screen_off = vcorefs_sdio_lock_dvfs(0);
         if(is_screen_off){
-            autok_add_suggest_vol(1000000); //DVFS Define 1.0v as LV
+            autok_add_suggest_vol(1000000); 
         }
         
         if(is_sug_more_than_real(id)){
@@ -444,8 +420,9 @@ int wait_sdio_autok_ready(void *data){
 #ifdef MTK_SDIO30_ONLINE_TUNING_SUPPORT    
         atomic_set(&host->ot_work.ot_disable, 1);
         atomic_set(&host->ot_work.autok_done, 0);
-#endif  // MTK_SDIO30_ONLINE_TUNING_SUPPORT
+#endif  
         autok_claim_host(host);
+        wake_lock(&host->trans_lock); 
 #endif
                 
 #ifdef AUTOK_THREAD       
@@ -483,20 +460,21 @@ int wait_sdio_autok_ready(void *data){
             }
         }
 
-        //reset_autok_cursor(0);
+        
 EXIT_WAIT_AUTOK_READY:        
 #ifndef UT_TEST       
-        // release host
+        
         autok_release_host(host);
+	wake_unlock(&host->trans_lock); 
         #ifdef CONFIG_SDIOAUTOK_SUPPORT
-    	//mt_cpufreq_disable(0, false);
+    	
     
         vcorefs_sdio_unlock_dvfs(0);
     	#endif
 #ifdef MTK_SDIO30_ONLINE_TUNING_SUPPORT
         atomic_set(&host->ot_work.autok_done, 1);
         atomic_set(&host->ot_work.ot_disable, 0);
-#endif  // MTK_SDIO30_ONLINE_TUNING_SUPPORT
+#endif  
 #endif
     }
     
@@ -514,7 +492,7 @@ void init_tune_sdio(struct msdc_host *host)
                 u32 vcore_uv = 0;
                 vcore_uv = autok_get_current_vcore_offset();
                 msdc_autok_apply_param(host, vcore_uv);
-                //wait_sdio_autok_ready(host->mmc);
+                
             }
             break;
         }
@@ -528,42 +506,42 @@ static int print_autok(struct autok_predata *t_predata, char *buf){
     int param_count;
     int param_size;
     int width;
-    //struct autok_predata *t_predata;
+    
     char data_buf[1024] = "";
-    //char *temp_ch;
+    
     offset = 0;
-    //t_predata = &p_autok_predata[id];
+    
     vol_count = t_predata->vol_count;
     param_count = t_predata->param_count;
     param_size = param_count*sizeof(U_AUTOK_INTERFACE_DATA);
-    //len = snprintf(data_buf + count, 32, "%02x", vol_count);
-    //count += len;
-    //len = snprintf(data_buf + count, 32, "%02x", param_count);
-    //count += len;    
+    
+    
+    
+    
     data_buf[0] = vol_count;
     data_buf[1] = param_count;
     offset += 2;
-    //temp_ch = (char*)&t_predata->vol_list[0];
+    
     width = sizeof(unsigned int)/sizeof(char);
     for(i=0; i<vol_count; i++){
-        //len = snprintf(data_buf + count, 32, "%02x", temp_ch[i]);
-        //count += len;
+        
+        
         memcpy(data_buf+offset+i*width, &t_predata->vol_list[i], width);
     }
     offset += vol_count*width;
     width = sizeof(U_AUTOK_INTERFACE_DATA)/sizeof(char);
     for(i=0; i<vol_count; i++){
-        //temp_ch = (char*)&t_predata->ai_data[i][0];
+        
         for(j=0; j<param_count; j++){
-            //len = snprintf(data_buf + offset, 32, "%02x", temp_ch[j]);
-            //offset += len;
-            //data_buf[offset+j] = temp_ch[j];
+            
+            
+            
             memcpy(data_buf+offset+j*width, &t_predata->ai_data[i][j], width);
         }
         offset += param_count*width;
     }
 
-    //len = snprintf(buf, 2048, "%s", data_buf);
+    
     memcpy(buf, data_buf, offset);
     
     return offset;
@@ -588,8 +566,8 @@ static int store_autok(struct autok_predata *t_predata, const char *buf, int cou
         vollist[i] = *((unsigned int*)(&buf[offset]));
         offset += width;
     }
-    //if(vol_count*param_size + offset > count)
-    //    return count;
+    
+    
     ai_data = kzalloc(vol_count*sizeof(U_AUTOK_INTERFACE_DATA *), GFP_KERNEL);
     for(i=0; i<vol_count; i++){
         ai_data[i] = kzalloc(param_size, GFP_KERNEL);
@@ -613,8 +591,6 @@ static ssize_t stage1_store(struct kobject *kobj, struct kobj_attribute *attr,
     int id;
     int select;
     struct msdc_host *host;
-//    char *p_log;
-//    id = 3;
     select = -1;
     sscanf(kobj->name, "%d", &id);
     
@@ -655,17 +631,17 @@ static ssize_t stage1_store(struct kobject *kobj, struct kobj_attribute *attr,
                 for(j=0; j<p_single_autok[id].param_count; j++)
                     pr_err("[AUTOKD] p_single_autok[%d].ai_data[%d][%d]=%d", id, i, j, p_single_autok[id].ai_data[i][j].data.sel);
             }
-            //[FIXDONE] Start to do autok alforithm; data is in p_single_autok
+            
 #ifdef UT_TEST
             if(is_first_stage1 == 1) {
-                // claim host   
+                
                 #ifdef CONFIG_SDIOAUTOK_SUPPORT
-                //mt_cpufreq_disable(0, true);
+                
                 vcorefs_sdio_lock_dvfs(0);
                 #endif
     #ifdef MTK_SDIO30_ONLINE_TUNING_SUPPORT    
                 atomic_set(&host->ot_work.ot_disable, 1);
-    #endif  // MTK_SDIO30_ONLINE_TUNING_SUPPORT
+    #endif  
                 autok_claim_host(host);
                 
                 is_first_stage1 = 0;
@@ -689,7 +665,7 @@ static ssize_t stage1_store(struct kobject *kobj, struct kobj_attribute *attr,
               is_full_log = i;
               if(i==0){       
                   debugfs_remove(autok_log_entry);
-                  //kfree(autok_log_info);
+                  
               }else{
                   autok_log_entry = debugfs_create_file("autok_log", 0660, NULL, NULL, &autok_log_fops);
                   i_gid_write(autok_log_entry->d_inode, 1000);
@@ -715,8 +691,8 @@ static ssize_t stage1_show(struct kobject *kobj, struct kobj_attribute *attr,
     int len, count = 0;
     int select;
     struct msdc_host *host;
-    //char *p_log;
-    //id = 3;
+    
+    
     
     sscanf(kobj->name, "%d", &id);
 
@@ -757,7 +733,7 @@ static ssize_t stage1_show(struct kobject *kobj, struct kobj_attribute *attr,
                     len = snprintf(data_buf + count, 32, "vol[%d]:%d\n", i, p_single_autok[id].vol_list[i]);
                     count += len;
                 }
-                //goto EXIT_STAGE2;
+                
                 for(i = 0; i<p_single_autok[id].vol_count; i++){
                     for(j=0; j<p_single_autok[id].param_count; j++){
                         len = snprintf(data_buf + count, 32, "param[%d][%d]:%d\n", i, j, p_single_autok[id].ai_data[i][j].data.sel);
@@ -771,7 +747,7 @@ static ssize_t stage1_show(struct kobject *kobj, struct kobj_attribute *attr,
             len = snprintf(buf, 32, "%d\n", p_autok_thread_data->is_autok_done[id]);
             break;
         case LOG:
-            //if(autok_log_info != NULL)
+            
             len = snprintf(buf, 32, "%d", is_full_log);
             break;
     }   
@@ -798,11 +774,11 @@ static int create_stage1_nodes(int size, struct kobject *parent_kobj)
         for(j=0; j<NODE_COUNT; j++){    
             stage1_attrs[i*NODE_COUNT+j] = kzalloc(sizeof(struct attribute), GFP_KERNEL);
             stage1_kattr[i*NODE_COUNT+j] = kzalloc(sizeof(struct kobj_attribute), GFP_KERNEL);
-            //name = kzalloc(DEVNAME_SIZE, GFP_KERNEL);
-            //sprintf(name, "%s", args_type[j]);
+            
+            
             stage1_attrs[i*NODE_COUNT+j]->name = stage1_nodes[j];
             stage1_attrs[i*NODE_COUNT+j]->mode = 0660;
-            stage1_kattr[i*NODE_COUNT+j]->attr = *stage1_attrs[i*NODE_COUNT+j];//*temp_attr;
+            stage1_kattr[i*NODE_COUNT+j]->attr = *stage1_attrs[i*NODE_COUNT+j];
             stage1_kattr[i*NODE_COUNT+j]->show = stage1_show;
             stage1_kattr[i*NODE_COUNT+j]->store = stage1_store;
             sysfs_attr_init(&stage1_kattr[i*NODE_COUNT+j]->attr);
@@ -831,7 +807,6 @@ static ssize_t stage2_show(struct kobject *kobj, struct kobj_attribute *attr,
     count = 0;
     sscanf(attr->attr.name, "%d", &id);
     
-//=========================================================================//
     if(!sdio_host_debug){
         len = print_autok(&p_autok_predata[id], (char*)buf);
         count += len;
@@ -847,7 +822,7 @@ static ssize_t stage2_show(struct kobject *kobj, struct kobj_attribute *attr,
             len = snprintf(data_buf + count, 32, "vol[%d]:%d\n", i, p_autok_predata[id].vol_list[i]);
             count += len;
         }
-        //goto EXIT_STAGE2;
+        
         for(i = 0; i<p_autok_predata[id].vol_count; i++){
             for(j=0; j<p_autok_predata[id].param_count; j++){
                 len = snprintf(data_buf + count, 32, "param[%d][%d]:%d\n", i, j, p_autok_predata[id].ai_data[i][j].data.sel);
@@ -879,29 +854,29 @@ static ssize_t stage2_store(struct kobject *kobj, struct kobj_attribute *attr,
         
         store_autok(&p_autok_predata[id], buf, count);
         
-        // [FIXDONE] Hook the function to apply parameter to respective controller
+        
 #ifdef AUTOK_THREAD       
         p_autok_thread_data->host = host;
         p_autok_thread_data->stage = 2;
         p_autok_thread_data->p_autok_predata = &p_autok_predata[id];
         p_autok_thread_data->log = autok_log_info;
         task = kthread_run(&autok_thread_func,(void *)(p_autok_thread_data),"autokp");
-        //autok_thread_func((void *)(p_autok_thread_data));
-        //wake_up_process(task);
+        
+        
 #endif        
 
 #ifdef UT_TEST
         if(is_first_stage1 == 0) {
-            // release host
+            
             autok_release_host(host);
             #ifdef CONFIG_SDIOAUTOK_SUPPORT
-        	//mt_cpufreq_disable(0, false);
+        	
             vcorefs_sdio_unlock_dvfs(0);
         	#endif
     #ifdef MTK_SDIO30_ONLINE_TUNING_SUPPORT
             atomic_set(&host->ot_work.autok_done, 1);
             atomic_set(&host->ot_work.ot_disable, 0);
-    #endif  // MTK_SDIO30_ONLINE_TUNING_SUPPORT
+    #endif  
             
             is_first_stage1 = 1;
         }
@@ -1006,13 +981,13 @@ static ssize_t host_store(struct kobject *kobj, struct kobj_attribute *attr,
 {
     int id;
     int i;
-    //int ret;
+    
     int select;
     unsigned int voltage;
     int test_len, cur_len;
     char cur_name[80]; 
     select = 0;    
-    //struct msdc_host *host;
+    
        
     sscanf(attr->attr.name, "%s", cur_name);
     for(i=0; i<TOTAL_HOST_NODE_COUNT; i++){
@@ -1029,7 +1004,7 @@ static ssize_t host_store(struct kobject *kobj, struct kobj_attribute *attr,
             sscanf(buf, "%d", &id);           
             for(i=0; i<HOST_MAX_NUM; i++){
                 if(p_autok_thread_data->p_autok_progress[i].host_id == -1 ){
-                    //p_autok_thread_data->p_autok_progress[i] = id;
+                    
                     task2 = kthread_run(&fake_sdio_device, (void *)&id, "fake_lte");
                     break;    
                 } else if(p_autok_thread_data->p_autok_progress[i].host_id == id){
@@ -1060,19 +1035,19 @@ static ssize_t host_store(struct kobject *kobj, struct kobj_attribute *attr,
             if(is_sug_more_than_real(id)){
                 for (i = 0; i < HOST_MAX_NUM; i++) {
                     if (p_autok_thread_data->p_autok_progress[i].host_id == id){
-                        //p_autok_thread_data->p_autok_progress[i].done = 0;
-                        //task2 = kthread_run(&trigger_1_0_autok_func, (void *)&id, "autok_1_0_task");
+                        
+                        
                         trigger_1_0_autok_func(NULL);
                         break;
                     }
                 }
             }
-            //
+            
 #endif       
             break;
         case PARAM_COUNT:
-            // [Workaround] Do reset for device
-            // id can be the selection for connected device
+            
+            
             sscanf(buf, "%d", &id); 
 #ifdef USE_WIFI_RESET       
             mtk_wcn_cmb_stub_do_reset(3);
@@ -1087,11 +1062,11 @@ static ssize_t host_store(struct kobject *kobj, struct kobj_attribute *attr,
 
 static int trigger_1_0_autok_func(void *data)
 {
-    //ret = mtk_wcn_cmb_stub_1vautok_for_dvfs();
-    //mtk_wcn_cmb_stub_func_ctrl(3,1);
-    //mtk_wcn_cmb_stub_func_ctrl(3,0);
-    //mtk_wcn_cmb_stub_func_ctrl(3,1);
-    //mtk_wcn_cmb_stub_func_ctrl(3,0);
+    
+    
+    
+    
+    
     mtk_wcn_cmb_stub_1vautok_for_dvfs();
     pr_debug("[AUTO_K][%s] 2. Wifi 1.0v Autok Simulation\n", __func__);
     return 0;
@@ -1103,7 +1078,7 @@ static int create_host_node(struct kobject *parent_kobj)
     int retval = 0;
     host_attrs = kzalloc(sizeof(struct attribute*), GFP_KERNEL);
     host_kattr = kzalloc(sizeof(struct kobj_attribute*), GFP_KERNEL);
-    //name = kzalloc(DEVNAME_SIZE, GFP_KERNEL);
+    
     
     for(i=0; i<(sizeof(host_nodes)/sizeof(host_nodes[0])); i++){
         host_attrs[i] = kzalloc(sizeof(struct attribute), GFP_KERNEL);
@@ -1143,7 +1118,7 @@ static int __init autok_init(void)
     i_gid_write(autok_log_entry->d_inode, 1000);
     autok_log_info = (char*)kzalloc(LOG_SIZE, GFP_KERNEL);
     is_full_log = 1;
-    /* create node /sys/mtk_sdio */
+    
     autok_kobj = kobject_create_and_add("autok", NULL);
     if (autok_kobj == NULL)
         return -ENOMEM;
@@ -1157,7 +1132,7 @@ static int __init autok_init(void)
 #ifdef AUTOK_THREAD    
     p_autok_thread_data = kzalloc(sizeof(struct sdio_autok_thread_data), GFP_KERNEL);
     p_autok_thread_data->log = autok_log_info;
-    //msdc_autok_apply_param_2 = msdc_autok_apply_param;
+    
 #endif
 
     if((retval=create_host_node(autok_kobj)) != 0)
@@ -1168,7 +1143,7 @@ static int __init autok_init(void)
         
     if((retval=create_stage2_node(HOST_MAX_NUM, stage2_kobj)) != 0)
         return retval;
-    // Special for 95m since we want to do autok with order 1.0|1.125 
+    
     if(vcorefs_sdio_need_multi_autok()){
         pr_err("need_multi_autok\n");
         suggest_vol_count = 2;
@@ -1188,13 +1163,13 @@ static int __init autok_init(void)
 static void __exit autok_exit(void)
 {      
     int i, j;  
-    //kobject_put(args_kobj);
+    
     kobject_put(stage2_kobj);
     kobject_put(stage1_kobj);
     kobject_put(autok_kobj);
     for(i=0; i<HOST_MAX_NUM*TOTAL_STAGE1_NODE_COUNT; i++){
         struct attribute *attr = *(stage1_attrs+i);
-        //kfree(attr->name);
+        
         kfree(attr);
         kfree(stage1_kattr[i]);
     }
@@ -1247,11 +1222,11 @@ static void __exit autok_exit(void)
     kfree(p_autok_thread_data->is_autok_done);
     kfree(p_autok_thread_data->p_autok_progress);
     kfree(p_autok_thread_data->autok_completion);
-    //kthread_stop(task);
+    
 #ifdef AUTOK_THREAD    
     kfree(p_autok_thread_data);
 #endif
-    //debugfs_remove(autok_log_entry);
+    
 }
 
 static void autok_add_suggest_vol(unsigned int voltage)

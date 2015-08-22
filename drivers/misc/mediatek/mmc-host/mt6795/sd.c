@@ -134,6 +134,8 @@ unsigned int print_nums;
 	__res & __mask;            \
 })
 
+static u8 emmc_id;
+
 #ifdef MTK_EMMC_ETT_TO_DRIVER
 #include "emmc_device_list.h"
 static u8 m_id;		
@@ -222,6 +224,10 @@ static unsigned int msdc_online_tuning(struct msdc_host *host, unsigned fn, unsi
 #define MSDC_MAX_W_TIMEOUT_TUNE_EMMC     (64)
 #define MSDC_MAX_R_TIMEOUT_TUNE          (3)
 #define MSDC_MAX_POWER_CYCLE             (5)
+
+#if 0 
+#define MSDC_MAX_CONTINUOUS_FAIL_REQUEST_COUNT (50)
+#endif
 
 #define HTC_MAX_CRCERR_COUNT             (2)
 #define HTC_MAX_RETRY_COUNT              (5)
@@ -1617,7 +1623,7 @@ static void msdc_reset_crc_tune_counter(struct msdc_host *host, TUNE_COUNTER ind
 	}
 }
 
-#if 0
+#if 1 
 static void msdc_set_bad_card_and_remove(struct msdc_host *host)
 {
 	int got_polarity = 0;
@@ -1908,7 +1914,6 @@ static void msdc_tasklet_card(unsigned long arg)
 		msdc_reset_pwr_cycle_counter(host);
 		msdc_reset_crc_tune_counter(host, all_counter);
 		msdc_reset_tmo_tune_counter(host, all_counter);
-		host->error_tune_enable = 1; 
 	}
 
 	ERR_MSG("host->suspend(%d)", host->suspend);
@@ -2247,11 +2252,6 @@ static u32 msdc_power_tuning(struct msdc_host *host)
 		return 1;
 #endif
 
-	if(!host->error_tune_enable) {
-		ERR_MSG("%s() tune_enable:%d, return\n", __func__, host->error_tune_enable);
-		return 1; 
-	}
-
 	if (host->hw->host_function == MSDC_SD)
 		host->power_cycle_enable = 1;
 
@@ -2349,19 +2349,21 @@ static u32 msdc_power_tuning(struct msdc_host *host)
 			ERR_MSG("the %d time, Power cycle Done, host->error(0x%x), ret(%d)",
 				host->power_cycle, host->error, ret);
 					(host->power_cycle)++;
-		} else if (host->power_cycle == MSDC_MAX_POWER_CYCLE) {
-#if 0
-			ERR_MSG("the %d time, exceed the max power cycle time %d, go to remove the bad card, power_cycle_enable=%d", host->power_cycle, MSDC_MAX_POWER_CYCLE, host->power_cycle_enable);
+		}
+#if 0 
+		else if (host->continuous_fail_request_count < MSDC_MAX_CONTINUOUS_FAIL_REQUEST_COUNT) {
+			host->continuous_fail_request_count++;
+			host->power_cycle = 0;
+		} else {
+			ERR_MSG(
+		"the %d time, exceed the max continuous fail request count %d, go to remove the bad card",
+				host->continuous_fail_request_count, MSDC_MAX_CONTINUOUS_FAIL_REQUEST_COUNT);
+			host->continuous_fail_request_count = 0;
 			spin_unlock(&host->lock);
 			msdc_set_bad_card_and_remove(host);
 			spin_lock(&host->lock);
-#else
-			if(host->error_tune_enable){
-				ERR_MSG("do disable error tune flow of bad SD card");
-				host->error_tune_enable = 0;
-			}
-#endif
 		}
+#endif
 	}
 
 	return ret;
@@ -3141,7 +3143,6 @@ static void msdc_pm(pm_message_t state, void *data)
 			host->mmc->pm_flags |= MMC_PM_IGNORE_PM_NOTIFY;
 			mmc_remove_host(host->mmc);
 		}
-		host->power_cycle = 0;
 	} else if (evt == PM_EVENT_RESUME || evt == PM_EVENT_USER_RESUME) {
 		if (!host->suspend){
 			goto end;
@@ -4538,6 +4539,15 @@ static void msdc_dma_start(struct msdc_host *host)
 
 	sdr_set_bits(MSDC_INTEN, wints);
 	N_MSG(DMA, "DMA start");
+
+	
+	if (host->data && host->data->flags & MMC_DATA_WRITE && host->hw->host_function == MSDC_SD) {
+		host->write_timeout_ms = min_t(u32,
+				max_t(u32, host->data->blocks * 500, host->data->timeout_ns / 1000000),
+				10 * 1000);
+		schedule_delayed_work(&host->write_timeout, msecs_to_jiffies(host->write_timeout_ms));
+		N_MSG(DMA, "DMA Data Busy Timeout:%u ms, schedule_delayed_work", host->write_timeout_ms);
+	}
 }
 
 static void msdc_dma_stop(struct msdc_host *host)
@@ -4546,6 +4556,15 @@ static void msdc_dma_stop(struct msdc_host *host)
 	int retry = 500;
 	int count = 1000;
 	u32 wints = MSDC_INTEN_XFER_COMPL | MSDC_INTEN_DATTMO | MSDC_INTEN_DATCRCERR ;
+
+	
+	if ((host->hw->host_function == MSDC_SD) &&
+		(host->data) && (host->data->flags & MMC_DATA_WRITE)) {
+		cancel_delayed_work(&host->write_timeout);
+		N_MSG(DMA, "DMA Data Busy Timeout:%u ms, cancel_delayed_work", host->write_timeout_ms);
+		host->write_timeout_ms = 0; 
+	}
+
 	
 	if(host->autocmd & MSDC_AUTOCMD12)
 		wints |= MSDC_INT_ACMDCRCERR | MSDC_INT_ACMDTMO | MSDC_INT_ACMDRDY;
@@ -5696,6 +5715,10 @@ static int msdc_do_request(struct mmc_host *mmc, struct mmc_request *mrq)
 			partition_access = (char)((cmd->arg >> 8) & 0x07);
 		}
 #endif
+
+		if ((host->hw->host_function == MSDC_EMMC) && (cmd->opcode == MMC_ALL_SEND_CID)) {
+			emmc_id = UNSTUFF_BITS(cmd->resp, 120, 8);
+		}
 
 #ifdef MTK_EMMC_ETT_TO_DRIVER
 		if ((host->hw->host_function == MSDC_EMMC) && (cmd->opcode == MMC_ALL_SEND_CID)) {
@@ -6863,9 +6886,6 @@ int msdc_tune_cmdrsp(struct msdc_host *host)
 	u32 clkmode;
 	int hs400 = 0;
 
-	if(!host->error_tune_enable) {
-		return 1; 
-	}
 	
 	sdr_get_field(MSDC_IOCON, MSDC_IOCON_RSPL, orig_rsmpl);
 	sdr_get_field(MSDC_PAD_TUNE, MSDC_PAD_TUNE_CMDRDLY, orig_rrdly);
@@ -7189,10 +7209,6 @@ int emmc_hs400_tune_rw(struct msdc_host *host)
 	if ((host->id != 0) || (host->state != MSDC_STATE_HS400)) {
 		return err;
 	}
-
-	if(!host->error_tune_enable) {
-		return 1; 
-	}
 	sdr_get_field(EMMC50_PAD_DS_TUNE, MSDC_EMMC50_PAD_DS_TUNE_DLY1, orig_ds_dly1);
 	sdr_get_field(EMMC50_PAD_DS_TUNE, MSDC_EMMC50_PAD_DS_TUNE_DLY3, orig_ds_dly3);
 
@@ -7260,9 +7276,6 @@ int msdc_tune_read(struct msdc_host *host)
 	u32 orig_dat0, orig_dat1, orig_dat2, orig_dat3, orig_dat4, orig_dat5, orig_dat6, orig_dat7;
 	int result = 0;
 
-	if(!host->error_tune_enable) {
-		return 1; 
-	}
 #if 1
 	if (host->mclk >= 100000000) {
 		sel = 1;
@@ -7500,9 +7513,6 @@ int msdc_tune_write(struct msdc_host *host)
 	int clkmode = 0;
 	int hs400 = 0;
 
-	if(!host->error_tune_enable) {
-		return 1; 
-	}
 #if 1
 	if (host->mclk >= 100000000)
 		sel = 1;
@@ -7901,19 +7911,6 @@ static void msdc_ops_request_legacy(struct mmc_host *mmc, struct mmc_request *mr
 				ERR_MSG("abort failed");
 				data_abort = 1;
 				if (host->hw->host_function == MSDC_SD) {
-#if 0
-					if (host->card_inserted) {
-						ERR_MSG("go to remove the bad card");
-						spin_unlock(&host->lock);
-						msdc_set_bad_card_and_remove(host);
-						spin_lock(&host->lock);
-					}
-#else
-					if(host->error_tune_enable){
-						ERR_MSG("do disable error tune flow of bad SD card");
-						host->error_tune_enable = 0;
-					}
-#endif
 					goto out;
 				}
 			}
@@ -8045,6 +8042,12 @@ static void msdc_ops_request_legacy(struct mmc_host *mmc, struct mmc_request *mr
 		msdc_dump_trans_error(host, cmd, data, stop, sbc);
 	}
 	host->sw_timeout = 0;
+
+#if 0 
+	if (host->hw->host_function == MSDC_SD)
+		host->continuous_fail_request_count = 0;
+#endif
+
  out:
 	msdc_reset_crc_tune_counter(host, all_counter);
 #ifdef MTK_MSDC_USE_CACHE
@@ -8385,6 +8388,11 @@ sd_err_retry:
 	host->power_cycle_enable = 1;
 	host->sw_timeout = 0;
 
+#if 0 
+	if (host->hw->host_function == MSDC_SD)
+		host->continuous_fail_request_count = 0;
+#endif
+
  out:
 	if (host->hw->host_function == MSDC_SD) {
 		if (err_count >= HTC_MAX_RETRY_COUNT) {
@@ -8468,13 +8476,52 @@ static void msdc_apply_ett_settings(struct msdc_host *host, int mode)
 	void __iomem *base = host->base;
 	struct msdc_ett_settings *ett = NULL;
 
+	struct msdc_ett_settings *current_ett = NULL;
+	struct msdc_ett_settings msdc0_ett_settings_for_sandisk[] = {
+		
+		{ MSDC_HS200_MODE, 0xb0,  (0x7 << 7), 0x0 }, 
+		{ MSDC_HS200_MODE, 0xb0,  (0x1f<<10), 0x0 }, 
+		{ MSDC_HS400_MODE, 0xb0,  (0x7 << 7), 0x0 }, 
+		{ MSDC_HS400_MODE, 0xb0,  (0x1f<<10), 0x0 }, 
+		{ MSDC_HS400_MODE, 0x188, (0x1f<< 2), 0x2 }, 
+		{ MSDC_HS400_MODE, 0x188, (0x1f<<12), 0xe }, 
+
+		
+		{ MSDC_HS200_MODE, 0xb4,  (0x7 << 3), 0x1 }, 
+		{ MSDC_HS200_MODE, 0x4,   (0x1 << 1), 0x1 }, 
+		{ MSDC_HS200_MODE, 0xec,  (0x1f<<16), 0xf }, 
+		{ MSDC_HS200_MODE, 0xec,  (0x1f<<22), 0x0 }, 
+
+		{ MSDC_HS400_MODE, 0xb4,  (0x7 << 3), 0x1 }, 
+		{ MSDC_HS400_MODE, 0x4,   (0x1 << 1), 0x0 }, 
+		{ MSDC_HS400_MODE, 0xec,  (0x1f<<16), 0xf }, 
+		{ MSDC_HS400_MODE, 0xec,  (0x1f<<22), 0xd }, 
+
+		
+		{ MSDC_HS200_MODE, 0xb4,  (0x7 << 0), 0x1 }, 
+		{ MSDC_HS200_MODE, 0xec,  (0x1f<< 0), 0xf }, 
+		{ MSDC_HS200_MODE, 0x4,   (0x1 <<10), 0x1 }, 
+		{ MSDC_HS200_MODE, 0xf0,  (0x1f<<24), 0xf }, 
+
+		
+		{ MSDC_HS200_MODE, 0xec,  (0x1f<< 8), 0x16}, 
+		{ MSDC_HS200_MODE, 0x4,   (0x1 << 2), 0x0 }, 
+	};
+
 	if (host->hw->ett_count == 0) {
 		printk("[%s][%d]\n", __func__, __LINE__);
 		return;
 	}
 
+	if(emmc_id == 0x45){
+		
+		current_ett = msdc0_ett_settings_for_sandisk;
+	}else {
+		current_ett = host->hw->ett_settings;
+	}
+
 	for (i = 0; i < host->hw->ett_count; i++) {
-		ett = (struct msdc_ett_settings *)(host->hw->ett_settings + i);
+		ett = (struct msdc_ett_settings *)(current_ett + i);
 		if (mode == ett->speed_mode) {
 			sdr_set_field((volatile u32 *)(base + ett->reg_addr), ett->reg_offset,
 					  ett->value);
@@ -9353,6 +9400,11 @@ static irqreturn_t msdc_irq(int irq, void *dev_id)
 				}
 
 				met_mmc_dma_stop(host->mmc, host->mmc->areq, met_mmc_bdnum);
+
+#if 0 
+				if (host->hw->host_function == MSDC_SD)
+					host->continuous_fail_request_count = 0;
+#endif
 			}
 		}
 
@@ -9496,6 +9548,12 @@ static irqreturn_t msdc_irq(int irq, void *dev_id)
 				*rsp = sdr_read32(SDC_RESP0);
 				break;
 			}
+
+#if 0 
+			if (host->hw->host_function == MSDC_SD)
+				host->continuous_fail_request_count = 0;
+#endif
+
 		} else if (intsts & MSDC_INT_RSPCRCERR) {
 			cmd->error = (unsigned int)-EIO;
 			ERR_MSG("XXX CMD<%d> MSDC_INT_RSPCRCERR Arg<0x%.8x>", cmd->opcode, cmd->arg);
@@ -9516,6 +9574,81 @@ static irqreturn_t msdc_irq(int irq, void *dev_id)
 	}
 	latest_int_status[host->id] = 0;
 	return IRQ_HANDLED;
+}
+
+static void msdc_check_write_timeout(struct work_struct *work)
+{
+	struct msdc_host *host = container_of(work, struct msdc_host, write_timeout.work);
+	void __iomem *base = host->base;
+
+	struct mmc_data  *data = host->data;
+	struct mmc_request *mrq = host->mrq;
+	struct mmc_host *mmc = host->mmc;
+
+	u32 status = 0;
+	u32 state = 0;
+	u32 err = 0;
+	unsigned long tmo;
+
+	if (!data || !mrq || !mmc)
+		return;
+
+	pr_err("[%s]: XXX DMA Data Write Busy Timeout: %u ms, CMD<%d>",
+		__func__, host->write_timeout_ms, mrq->cmd->opcode);
+
+	if (msdc_async_use_dma(data->host_cookie) && (host->tune == 0)) {
+		msdc_dump_info(host->id);
+
+		msdc_dma_stop(host);
+		msdc_dma_clear(host);
+		msdc_reset_hw(host->id);
+
+		tmo = jiffies + POLLING_BUSY;
+
+		
+		spin_lock(&host->lock);
+		do {
+			
+			err = msdc_get_card_status(mmc, host, &status);
+			if (err) {
+				ERR_MSG("CMD13 ERR<%d>", err);
+				break;
+			}
+
+			state = R1_CURRENT_STATE(status);
+			ERR_MSG("check card state<%d>", state);
+			if (state == R1_STATE_DATA || state == R1_STATE_RCV) {
+				ERR_MSG("state<%d> need cmd12 to stop", state);
+				msdc_send_stop(host);
+			} else if (state == R1_STATE_PRG) {
+				ERR_MSG("state<%d> card is busy", state);
+				spin_unlock(&host->lock);
+				msleep(100);
+				spin_lock(&host->lock);
+			}
+
+			if (time_after(jiffies, tmo)) {
+				ERR_MSG("abort timeout. Card stuck in %d state, bad card! remove it!" , state);
+				spin_unlock(&host->lock);
+				msdc_set_bad_card_and_remove(host);
+				spin_lock(&host->lock);
+				break;
+			}
+		} while (state != R1_STATE_TRAN);
+		spin_unlock(&host->lock);
+
+		data->error = (unsigned int)-ETIMEDOUT;
+		host->sw_timeout++;
+
+		if (mrq->done)
+			mrq->done(mrq);
+
+		msdc_gate_clock(host, 1);
+		host->error |= REQ_DAT_ERR;
+	} else {
+		
+		
+	}
 }
 
 static void msdc_enable_cd_irq(struct msdc_host *host, int enable)
@@ -10571,7 +10704,6 @@ static int msdc_drv_probe(struct platform_device *pdev)
 	host->sd_30_busy = 0;
 	msdc_reset_tmo_tune_counter(host, all_counter);
 	msdc_reset_pwr_cycle_counter(host);
-	host->error_tune_enable = 1; 
 
 	if (is_card_sdio(host) || (host->hw->flags & MSDC_SDIO_IRQ)) {
 		host->saved_para.suspend_flag = 0;
@@ -10612,6 +10744,7 @@ static int msdc_drv_probe(struct platform_device *pdev)
 #endif 
 #endif 
 	
+	INIT_DELAYED_WORK(&host->write_timeout, msdc_check_write_timeout);
 	spin_lock_init(&host->lock);
 	spin_lock_init(&host->clk_gate_lock);
 	spin_lock_init(&host->remove_bad_card);

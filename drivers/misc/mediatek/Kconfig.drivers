@@ -1873,3 +1873,7 @@ config MTK_EXTMEM
 	   bool "mtk external memory"
 	   depends on MTK_INTERNAL
 	   default n
+
+config MTK_VCORE10_FEATURE
+       bool "VCORE10 feature"
+       default n

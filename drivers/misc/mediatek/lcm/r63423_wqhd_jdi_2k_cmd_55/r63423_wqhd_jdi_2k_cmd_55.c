@@ -232,10 +232,10 @@ static void lcm_get_params(LCM_PARAMS *params)
 	params->dsi.lane_swap[MIPITX_PHY_PORT_0][MIPITX_PHY_LANE_RX] = MIPITX_PHY_LANE_0;
 
 	params->pwm_min = 6;
-	params->pwm_default = 88;
+	params->pwm_default = 76;
 	params->pwm_max = 255;
-	params->camera_blk = 189;
-	params->camera_dua_blk = 189;
+	params->camera_blk = 193;
+	params->camera_dua_blk = 193;
 	params->camera_rec_blk = 168;
 	params->dim_cmd = 0x2c;
 }

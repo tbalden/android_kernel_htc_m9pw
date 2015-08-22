@@ -98,6 +98,44 @@ typedef enum {
 #define FPC1020_REG_TO_ACTUAL(reg) ( 				\
 	((reg) >= FPC1150_REG_OFFSET) ? ((reg) - FPC1150_REG_OFFSET) : (reg) )
 
+#define FPC1020_REG_LOG(reg) (	\
+	((reg) == FPC102X_REG_FPC_STATUS) ?			1 : \
+	((reg) == FPC102X_REG_READ_INTERRUPT) ?			1 : \
+	((reg) == FPC102X_REG_READ_INTERRUPT_WITH_CLEAR) ?	0 : \
+	((reg) == FPC102X_REG_READ_ERROR_WITH_CLEAR) ?		1 : \
+	((reg) == FPC102X_REG_MISO_EDGE_RIS_EN) ?		1 : \
+	((reg) == FPC102X_REG_FPC_CONFIG) ?			1 : \
+	((reg) == FPC102X_REG_IMG_SMPL_SETUP) ?			1 : \
+	((reg) == FPC102X_REG_CLOCK_CONFIG) ?			1 : \
+	((reg) == FPC102X_REG_IMG_CAPT_SIZE) ?			1 : \
+	((reg) == FPC102X_REG_IMAGE_SETUP) ?			0 : \
+	((reg) == FPC102X_REG_ADC_TEST_CTRL) ?			1 : \
+	((reg) == FPC102X_REG_IMG_RD) ?				1 : \
+	((reg) == FPC102X_REG_SAMPLE_PX_DLY) ?			0 : \
+	((reg) == FPC102X_REG_PXL_RST_DLY) ?			1 : \
+	((reg) == FPC102X_REG_TST_COL_PATTERN_EN) ?		1 : \
+	((reg) == FPC102X_REG_CLK_BIST_RESULT) ?		1 : \
+	((reg) == FPC102X_REG_ADC_WEIGHT_SETUP) ?		1 : \
+	((reg) == FPC102X_REG_ANA_TEST_MUX) ?			1 : \
+	((reg) == FPC102X_REG_FINGER_DRIVE_CONF) ?		0 : \
+	((reg) == FPC102X_REG_FINGER_DRIVE_DLY) ?		0 : \
+	((reg) == FPC102X_REG_OSC_TRIM) ?			1 : \
+	((reg) == FPC102X_REG_ADC_WEIGHT_TABLE) ?		1 : \
+	((reg) == FPC102X_REG_ADC_SETUP) ?			1 : \
+	((reg) == FPC102X_REG_ADC_SHIFT_GAIN) ?			0 : \
+	((reg) == FPC102X_REG_BIAS_TRIM) ?			1 : \
+	((reg) == FPC102X_REG_PXL_CTRL) ?			0 : \
+	((reg) == FPC102X_REG_FPC_DEBUG) ?			1 : \
+	((reg) == FPC102X_REG_FINGER_PRESENT_STATUS) ?		1 : \
+	((reg) == FPC102X_REG_HWID) ?				1 : \
+								    \
+	((reg) == FPC1020_REG_FNGR_DET_THRES) ?			0 : \
+	((reg) == FPC1020_REG_FNGR_DET_CNTR) ?			0 : \
+								    \
+	((reg) == FPC1150_REG_FNGR_DET_THRES) ?			0 : \
+	((reg) == FPC1150_REG_FNGR_DET_CNTR) ?			0 : \
+								0)
+
 #endif 
 
 

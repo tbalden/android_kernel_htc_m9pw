@@ -177,7 +177,15 @@ int spc_test(int code);
 int MTK_SPC_Init(void* dev);
 #endif
 
+#if defined(CONFIG_MTK_VCORE10_FEATURE)
+#define MMDVFS_ENABLE_DEFAULT_STEP_QUERY
+#define MMDVFS_MMCLOCK_NOTIFICATION
+#endif
 extern int mmdvfs_set_step(MTK_SMI_BWC_SCEN scenario, mmdvfs_voltage_enum step);
+#if defined(CONFIG_MTK_VCORE10_FEATURE)
+extern int mmdvfs_is_default_step_need_perf(void);
+#endif
+extern void mmdvfs_mm_clock_switch_notify(int is_before, int is_to_high);
  
 #endif
 

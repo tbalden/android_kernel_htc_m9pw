@@ -38,6 +38,9 @@
 	const bool target_little_endian = false;
 #endif
 
+#ifdef DEBUG
+static int fp_zones = 0;
+#endif
 
 struct chip_struct {
 	fpc1020_chip_t type;
@@ -186,6 +189,7 @@ const fpc1020_diag_t fpc1020_diag_default = {
 	.spi_register = 0,
 	.spi_regsize  = 0,
 	.spi_data     = 0,
+	.debug_flag   = 0,
 };
 
 
@@ -1398,10 +1402,38 @@ int fpc1020_reg_access(fpc1020_data_t *fpc1020,
 	if (gpio_is_valid(fpc1020->cs_gpio))
 		gpio_set_value(fpc1020->cs_gpio, 1);
 #ifdef DEBUG
-	dev_dbg(&fpc1020->spi->dev,
+	if(fpc1020->diag.debug_flag || FPC1020_REG_LOG(reg_data->reg))
+	{
+		static int pre_fp_present[2] = {0};
+		int fp_print_enable = 0;
+
+		if(fpc1020->diag.debug_flag == 1)
+			fp_print_enable = 1;
+		switch(reg_data->reg)
+		{
+			case 212:
+				if(reg_data->reg_size > 0 && temp_buffer[0+cmd_size] != pre_fp_present[0])
+				{
+					pre_fp_present[0] = temp_buffer[0+cmd_size];
+					fp_print_enable = 1;
+				}
+
+				if(reg_data->reg_size > 1 && temp_buffer[1+cmd_size] != pre_fp_present[1])
+				{
+					pre_fp_present[1] = temp_buffer[1+cmd_size];
+					fp_print_enable = 1;
+				}
+				break;
+			default:
+				fp_print_enable = 1;
+				break;
+		}
+
+		if(fp_print_enable)
+		dev_dbg(&fpc1020->spi->dev,
 		"%s %s 0x%x/%dd (%d bytes) %x %x %x %x : %x %x %x %x\n",
 		 __func__,
-		(reg_data->write) ? "WRITE" : "READ",
+		(reg_data->write) ? "W" : "R",
 		reg_data->reg,
 		reg_data->reg,
 		reg_data->reg_size,
@@ -1413,6 +1445,7 @@ int fpc1020_reg_access(fpc1020_data_t *fpc1020,
 		(reg_data->reg_size > 5) ? temp_buffer[5+cmd_size] : 0,
 		(reg_data->reg_size > 6) ? temp_buffer[6+cmd_size] : 0,
 		(reg_data->reg_size > 7) ? temp_buffer[7+cmd_size] : 0);
+	}
 #endif
 out:
 	return error;
@@ -1522,6 +1555,7 @@ int fpc1020_cmd(fpc1020_data_t *fpc1020,
 			u8 wait_irq_mask)
 {
 	int error = 0;
+	static int pre_error = 0;
 	struct spi_message msg;
 
 	struct spi_transfer t = {
@@ -1562,7 +1596,16 @@ int fpc1020_cmd(fpc1020_data_t *fpc1020,
 		gpio_set_value(fpc1020->cs_gpio, 1);
 #endif
 
-	dev_dbg(&fpc1020->spi->dev, "%s 0x%x/%dd, error:%d\n", __func__, cmd, cmd, error);
+	if(cmd == 32 && fpc1020->diag.debug_flag != 1)
+	{
+		if(pre_error != error)
+		{
+			dev_dbg(&fpc1020->spi->dev, "%s 0x%x/%dd, error:%d\n", __func__, cmd, cmd, error);
+			pre_error = error;
+		}
+	}
+	else
+		dev_dbg(&fpc1020->spi->dev, "%s 0x%x/%dd, error:%d\n", __func__, cmd, cmd, error);
 
 	return error;
 }
@@ -1672,7 +1715,7 @@ int fpc1020_check_finger_present_raw(fpc1020_data_t *fpc1020)
 
 	fpc1020->diag.finger_present_status = temp_u16;
 
-	dev_dbg(&fpc1020->spi->dev, "%s zonedata = 0x%x\n", __func__, temp_u16);
+	
 
 	return temp_u16;
 }
@@ -1697,7 +1740,13 @@ int fpc1020_check_finger_present_sum(fpc1020_data_t *fpc1020)
 			zones >>= 1;
 			mask >>= 1;
 		}
-		dev_dbg(&fpc1020->spi->dev, "%s %d zones\n", __func__, count);
+
+#ifdef DEBUG
+		if(fp_zones != count || fpc1020->diag.debug_flag) {
+			fp_zones = count;
+			dev_dbg(&fpc1020->spi->dev, "%s %d zones\n", __func__, count);
+		}
+#endif
 		return (int)count;
 	}
 }
@@ -1821,7 +1870,7 @@ int fpc1020_fetch_image(fpc1020_data_t *fpc1020,
 	const u8 tx_data[2] = {FPC1020_CMD_READ_IMAGE , 0};
 	struct mt_chip_conf *chip_config = NULL;
 
-	dev_dbg(&fpc1020->spi->dev, "%s (+%d)\n", __func__, offset);
+	
 
 	if ((offset + (int)image_size_bytes) > buff_size) {
 		dev_err(&fpc1020->spi->dev,
@@ -1861,7 +1910,7 @@ int fpc1020_fetch_image(fpc1020_data_t *fpc1020,
 		spi_message_init(&msg);
 		spi_message_add_tail(&cmd,	&msg);
 
-		dev_dbg(&fpc1020->spi->dev, "%s (rest_length %d)\n", __func__, rest_length);
+		
 
 		if( rest_length > 0) {
 

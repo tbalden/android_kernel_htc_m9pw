@@ -97,6 +97,8 @@ const char *disp_helper_option_spy(DISP_HELPER_OPTION option)
 		case DISP_HELPER_OPTION_DECOUPLE_MODE_USE_RGB565: 			return "DISP_HELPER_OPTION_DECOUPLE_MODE_USE_RGB565";
 		case DISP_HELPER_OPTION_TWO_PIPE_INTERFACE_PATH: 			return "DISP_HELPER_OPTION_TWO_PIPE_INTERFACE_PATH";
 		case DISP_HELPER_OPTION_NO_LCM_FOR_LOW_POWER_MEASUREMENT: 	return "DISP_HELPER_OPTION_NO_LCM_FOR_LOW_POWER_MEASUREMENT";
+		case DISP_HELPER_OPTION_DEFAULT_DECOUPLE_MODE:				return "DISP_HELPER_OPTION_DEFAULT_DECOUPLE_MODE";
+		case DISP_HELPER_OPTION_DISPLAY_PATH_DEBUG_PATTERN:			return "DISP_HELPER_OPTION_DISPLAY_PATH_DEBUG_PATTERN";
 		default: 													return "unknown";
 	}
 }
@@ -243,6 +245,14 @@ void disp_helper_option_init(void)
 
 	
 	disp_helper_set_option(DISP_HELPER_OPTION_DECOUPLE_MODE_USE_RGB565, 		0);
+#if defined(CONFIG_MTK_VCORE10_FEATURE)
+	
+	disp_helper_set_option(DISP_HELPER_OPTION_DEFAULT_DECOUPLE_MODE, 			1);
+#else
+	disp_helper_set_option(DISP_HELPER_OPTION_DEFAULT_DECOUPLE_MODE, 			0);
+#endif
+	
+	disp_helper_set_option(DISP_HELPER_OPTION_DISPLAY_PATH_DEBUG_PATTERN, 		0);
 }
 
 int disp_helper_get_option_list(char* stringbuf, int buf_len)

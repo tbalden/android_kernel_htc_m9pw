@@ -1157,27 +1157,24 @@ rlmRecIeInfoForClient(P_ADAPTER_T prAdapter,
 		DBGLOG(RLM, INFO, ("Ch : DFS has Appeared\n"));
 	}
 #endif
+	if(!rlmDomainIsValidRfSetting(prAdapter, prBssInfo->eBand, 
+		prBssInfo->ucPrimaryChannel, prBssInfo->eBssSCO, 
+		prBssInfo->ucVhtChannelWidth, prBssInfo->ucVhtChannelFrequencyS1,
+		prBssInfo->ucVhtChannelFrequencyS2)) {
+	
+		
+		DBGLOG(RLM, WARN, ("rlmRecIeInfoForClient IE Information\n"));
+		DBGLOG(RLM, WARN, ("IE Length = %d\n", u2IELength));
+		DBGLOG_MEM8(RLM, WARN, pucIE, u2IELength);
 
-    
-    if (prBssInfo->eBand == BAND_2G4) {
-        if (prBssInfo->ucVhtChannelWidth == CW_80MHZ) {
-
-            
-            DBGLOG(RLM, WARN, ("rlmRecIeInfoForClient: B=%d, W=%d\n",prBssInfo->eBand, prBssInfo->ucVhtChannelWidth));
-            DBGLOG(RLM, WARN, ("IE Length= %u\n",u2IELength));
-            DBGLOG_MEM8(RLM, WARN, pucIE, u2IELength);
-
-            
-            prBssInfo->ucVhtChannelWidth = CW_20_40MHZ; 
-            prBssInfo->ucVhtChannelFrequencyS1 = 0;
-            prBssInfo->ucVhtChannelFrequencyS2 = 0;
-			
-            
-            prBssInfo->eBssSCO = CHNL_EXT_SCN;
-            prBssInfo->ucHtOpInfo1 &=
-            ~(HT_OP_INFO1_SCO | HT_OP_INFO1_STA_CHNL_WIDTH);
-        }
-    }
+				 
+		prBssInfo->ucVhtChannelWidth = CW_20_40MHZ; 
+		prBssInfo->ucVhtChannelFrequencyS1 = 0;
+		prBssInfo->ucVhtChannelFrequencyS2 = 0;
+		prBssInfo->eBssSCO = CHNL_EXT_SCN;
+		prBssInfo->ucHtOpInfo1 &=
+			~(HT_OP_INFO1_SCO | HT_OP_INFO1_STA_CHNL_WIDTH);
+	}
 
 #if CFG_SUPPORT_QUIET && 0
 	if (!fgHasQuietIE) {

@@ -2221,8 +2221,8 @@ stp_sdio_probe(const MTK_WCN_HIF_SDIO_CLTCTX clt_ctx,
 		     "stp_sdio_tx_rx", osal_sizeof(g_stp_sdio_host_info.tx_rx_thread.threadName));
 	ret = osal_thread_create(&g_stp_sdio_host_info.tx_rx_thread);
 	if (ret < 0) {
-		STPSDIO_ERR_FUNC("osal_thread_create fail...\n");
-		goto out;
+		STPSDIO_ERR_FUNC("osal_thread_create fail...ret:%d, pThread:%p\n", ret, g_stp_sdio_host_info.tx_rx_thread.pThread);
+		return ret;
 	}
 #else
 	
@@ -2318,7 +2318,8 @@ stp_sdio_probe(const MTK_WCN_HIF_SDIO_CLTCTX clt_ctx,
 #if STP_SDIO_OWN_THREAD
 		osal_thread_destroy(&g_stp_sdio_host_info.tx_rx_thread);
 #endif
-		--g_stp_sdio_host_count;
+		if (g_stp_sdio_host_count > 0)
+			--g_stp_sdio_host_count;
 	}
 	return ret;
 }
@@ -2333,7 +2334,8 @@ static INT32 stp_sdio_remove(const MTK_WCN_HIF_SDIO_CLTCTX clt_ctx)
 		STPSDIO_ERR_FUNC("sdio_cltctx(%d) not found\n", clt_ctx);
 		return -1;
 	}
-    --g_stp_sdio_host_count;
+	if (g_stp_sdio_host_count > 0)
+		--g_stp_sdio_host_count;
 	
 	mtk_wcn_hif_sdio_enable_irq(clt_ctx, MTK_WCN_BOOL_FALSE);
 	

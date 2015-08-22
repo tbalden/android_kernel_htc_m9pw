@@ -71,7 +71,6 @@ extern int is_DAL_Enabled(void);
 #include "extd_kernel_drv.h"
 #endif
 
-// TODO: revise this later @xuecheng
 #include "mtkfb_fence.h"
 
 typedef enum
@@ -158,7 +157,7 @@ disp_mem_output_config _ovl2mem_out_cached_config =
 
 int _session_inited(disp_session_config config)
 {
-	// TODO:
+	
 	#if 0
 	int i, idx = -1;
 
@@ -186,7 +185,7 @@ int disp_create_session (disp_session_config*config)
 	int is_session_inited = 0;
 	unsigned int session = MAKE_DISP_SESSION(config->type, config->device_id);
 	int i, idx = -1;
-	//1.To check if this session exists already
+	
 	mutex_lock(&disp_session_lock);
 	for (i = 0; i < MAX_SESSION_COUNT; i++)
 	{
@@ -212,10 +211,10 @@ int disp_create_session (disp_session_config*config)
 			break;
 		}
 	}
-	//1.To check if support this session (mode,type,dev)
-	//TODO:
+	
+	
 
-	//2. Create this session
+	
 	if (idx != -1)
 	{
 		config->session_id = session;
@@ -234,7 +233,7 @@ done:
     if(DISP_SESSION_TYPE(session) == DISP_SESSION_MEMORY)
     {
         ovl2mem_init(session);
-       /// _ovl2mem_out_cached_config.mode = 3;
+       
     }
     else if(DISP_SESSION_TYPE(session) == DISP_SESSION_EXTERNAL)
     {
@@ -257,7 +256,7 @@ int disp_destroy_session (disp_session_config* config)
     if(DISP_SESSION_TYPE(session) == DISP_SESSION_MEMORY )
 	{
         ovl2mem_deinit();
-       /// _ovl2mem_out_cached_config.mode = 0;
+       
 	}
 	else if(DISP_SESSION_TYPE(session) == DISP_SESSION_EXTERNAL)
     {
@@ -268,7 +267,7 @@ int disp_destroy_session (disp_session_config* config)
     
 	release_session_buffer(DISP_SESSION_TYPE(config->session_id), 0xFF, NULL);
 
-	//1.To check if this session exists already, and remove it
+	
 	mutex_lock(&disp_session_lock);
 	for (i = 0; i < MAX_SESSION_COUNT; i++)
 	{
@@ -281,7 +280,7 @@ int disp_destroy_session (disp_session_config* config)
 	}
 
 	mutex_unlock(&disp_session_lock);
-	//2. Destroy this session
+	
 	if (ret == 0)
 	{
 		DISPMSG("Destroy session(0x%x)\n", session);
@@ -314,7 +313,7 @@ bool release_session_buffer (DISP_SESSION_TYPE	type, unsigned int layerid, unsig
 	}
 
     if(session == 0)
-        ///||((layerid < HW_OVERLAY_COUNT) &&(layer_phy_addr == NULL)))
+        
     {
         DISPERR("sess(%d) (type %d)(addr 0x%x) failed! \n", session, type, layer_phy_addr);
         return false;
@@ -422,8 +421,8 @@ int _mem_out_release_fence_callback(unsigned int userdata)
 	if(fence_idx > 0)
 		mtkfb_release_fence(session_id, DDP_OUTPUT_LAYID, fence_idx);
 
-	///if(ticket == _ovl2mem_out_cached_config.ticket)
-	///    primary_dislay_mirror_enable(false);
+	
+	
 
     DISPMSG("mem_out release fence idx:0x%x, cfgidx:0x%x\n", fence_idx,_ovl2mem_out_cached_config.buff_idx);
 
@@ -489,7 +488,7 @@ int _ioctl_trigger_session(unsigned long arg)
 
 	if(DISP_SESSION_TYPE(session_id) == DISP_SESSION_PRIMARY)
 	{
-		// only primary display udpate present fence, external display has no present fence mechanism
+		
 		if(config.present_fence_idx != (unsigned int)-1)
 		{
 			primary_display_update_present_fence(config.present_fence_idx);
@@ -524,8 +523,7 @@ int _ioctl_trigger_session(unsigned long arg)
 	return (ret);
 }
 
-// create fence for present fence
-#if 0 // use separate timeline
+#if 0 
 int _ioctl_prepare_present_fence(unsigned long arg)
 {
 	int ret = 0;
@@ -547,7 +545,7 @@ int _ioctl_prepare_present_fence(unsigned long arg)
         }
     }
     
-	// create fence
+	
 	data.fence = MTK_FB_INVALID_FENCE_FD;
 	data.value = ++fence_idx;	
 	ret = fence_create(timeline, &data);
@@ -600,7 +598,7 @@ int _ioctl_prepare_present_fence(unsigned long arg)
 			return ret;
 		}
 		
-		// create fence
+		
 		data.fence = MTK_FB_INVALID_FENCE_FD;
 		data.value = ++fence_idx;	
 		ret = fence_create(layer_info->timeline, &data);
@@ -672,7 +670,7 @@ int _ioctl_prepare_buffer(unsigned long arg, ePREPARE_FENCE_TYPE type)
 		else
 		{
 		    DISPPR_ERROR("P+ FAIL /%s%d/l%d/e%d/ion%d/c%d/id%d/ffd%d\n",disp_session_mode_spy(info.session_id),   DISP_SESSION_DEV(info.session_id), info.layer_id, info.layer_en, info.ion_fd, info.cache_sync,info.index, info.fence_fd);				
-			info.fence_fd = MTK_FB_INVALID_FENCE_FD; // invalid fd
+			info.fence_fd = MTK_FB_INVALID_FENCE_FD; 
 			info.index = 0;
 		}
 
@@ -680,7 +678,7 @@ int _ioctl_prepare_buffer(unsigned long arg, ePREPARE_FENCE_TYPE type)
 		{
 			if(primary_display_is_decouple_mode() && primary_display_is_mirror_mode())
 			{
-			    /*create second fence for wdma when decouple mirror mode*/
+			    
 				info.layer_id = disp_sync_get_output_interface_timeline_id();
 				buf2 = disp_sync_prepare_buf(&info);
 				if (buf2 != NULL)
@@ -691,13 +689,13 @@ int _ioctl_prepare_buffer(unsigned long arg, ePREPARE_FENCE_TYPE type)
 				else
 				{
 					DISPPR_ERROR("P+ FAIL /%s%d/l%d/e%d/ion%d/c%d/id%d/ffd%d\n",disp_session_mode_spy(info.session_id), DISP_SESSION_DEV(info.session_id), info.layer_id, info.layer_en, info.ion_fd, info.cache_sync,info.index, info.fence_fd);
-					info.interface_fence_fd = MTK_FB_INVALID_FENCE_FD; // invalid fd
+					info.interface_fence_fd = MTK_FB_INVALID_FENCE_FD; 
 					info.interface_index = 0;
 				}
 			}
 			else
 			{
-				info.interface_fence_fd = MTK_FB_INVALID_FENCE_FD; // invalid fd
+				info.interface_fence_fd = MTK_FB_INVALID_FENCE_FD; 
 				info.interface_index = 0;
 			}
 		}
@@ -705,7 +703,7 @@ int _ioctl_prepare_buffer(unsigned long arg, ePREPARE_FENCE_TYPE type)
 	else
 	{
 		DISPPR_ERROR("P+ FAIL /%s%d/l%d/e%d/ion%d/c%d/id%d/ffd%d\n",disp_session_mode_spy(info.session_id),   DISP_SESSION_DEV(info.session_id), info.layer_id, info.layer_en, info.ion_fd, info.cache_sync,info.index, info.fence_fd);
-		info.fence_fd = MTK_FB_INVALID_FENCE_FD;	  // invalid fd
+		info.fence_fd = MTK_FB_INVALID_FENCE_FD;	  
 		info.index = 0;
 	}
 	if (copy_to_user(argp, &info, sizeof(info)))
@@ -777,9 +775,9 @@ static int _sync_convert_fb_layer_to_ovl_struct(unsigned int session_id, disp_in
 			layerpitch = 3;
 			layerbpp = 24;
 			break;
-			//xuecheng, ??????
+			
 		case DISP_FORMAT_ARGB8888:
-			//dst->fmt = eRGBA8888;
+			
 			dst->fmt = eARGB8888;
 			layerpitch = 4;
 			layerbpp = 32;
@@ -797,7 +795,7 @@ static int _sync_convert_fb_layer_to_ovl_struct(unsigned int session_id, disp_in
 			break;
 
 		case DISP_FORMAT_BGRA8888:
-			//dst->fmt = eABGR8888;
+			
 			dst->fmt = eBGRA8888;
 			layerpitch = 4;
 			layerbpp = 32;
@@ -851,7 +849,7 @@ static int _sync_convert_fb_layer_to_ovl_struct(unsigned int session_id, disp_in
 	dst->identity = src->identity;
 	dst->connected_type = src->connected_type;
 
-    	//set Alpha blending
+    	
 	dst->aen = src->alpha_enable;
 	dst->alpha = src->alpha;
 #if 1
@@ -866,7 +864,7 @@ static int _sync_convert_fb_layer_to_ovl_struct(unsigned int session_id, disp_in
 	dst->src_alpha = src->src_alpha;
 	dst->dst_alpha = src->dst_alpha;
 
-	//set src width, src height
+	
 	dst->src_x = src->src_offset_x;
 	dst->src_y = src->src_offset_y;
 	dst->src_w = src->src_width;
@@ -881,11 +879,11 @@ static int _sync_convert_fb_layer_to_ovl_struct(unsigned int session_id, disp_in
 		    dst->dst_h = dst->src_h;
 
 	dst->src_pitch = src->src_pitch*layerpitch;
-    	//set color key
+    	
 	dst->key = src->src_color_key;
 	dst->keyEn = src->src_use_color_key;
 
-    //data transferring is triggerred in MTKFB_TRIG_OVERLAY_OUT
+    
 	dst->layer_en= src->layer_enable;
 	dst->yuv_range = src->yuv_range;
 	dst->isDirty = true;
@@ -899,6 +897,7 @@ static int _sync_convert_fb_layer_to_disp_input(unsigned int session_id, disp_in
 	unsigned int layerbpp = 0;
 
 	dst->layer = src->layer_id;
+	dst->buff_idx = src->next_buff_idx;
 
 	if (!src->layer_enable)
 	{
@@ -932,7 +931,7 @@ static int _sync_convert_fb_layer_to_disp_input(unsigned int session_id, disp_in
 			layerpitch = 3;
 			layerbpp = 24;
 			break;
-			//xuecheng, ??????
+			
 		case DISP_FORMAT_ARGB8888:
 			dst->fmt = eARGB8888;
 			layerpitch = 4;
@@ -951,7 +950,7 @@ static int _sync_convert_fb_layer_to_disp_input(unsigned int session_id, disp_in
 			break;
 
 		case DISP_FORMAT_BGRA8888:
-			//dst->fmt = eABGR8888;
+			
 			dst->fmt = eBGRA8888;
 			layerpitch = 4;
 			layerbpp = 32;
@@ -1012,7 +1011,7 @@ static int _sync_convert_fb_layer_to_disp_input(unsigned int session_id, disp_in
 	dst->identity = src->identity;
 	dst->connected_type = src->connected_type;
 
-	//set Alpha blending
+	
 	dst->aen = src->alpha_enable;
 	dst->alpha = src->alpha;
 #if 1
@@ -1027,7 +1026,7 @@ static int _sync_convert_fb_layer_to_disp_input(unsigned int session_id, disp_in
     dst->src_alpha = src->src_alpha;
     dst->dst_alpha = src->dst_alpha;
 
-	//set src width, src height
+	
 	dst->src_x = src->src_offset_x;
 	dst->src_y = src->src_offset_y;
 	dst->src_w = src->src_width;
@@ -1041,11 +1040,11 @@ static int _sync_convert_fb_layer_to_disp_input(unsigned int session_id, disp_in
 
 	dst->src_pitch = src->src_pitch*layerpitch;
 
-	//set color key
+	
 	dst->key = src->src_color_key;
 	dst->keyEn = src->src_use_color_key;
 
-	//data transferring is triggerred in MTKFB_TRIG_OVERLAY_OUT
+	
 	dst->layer_en= src->layer_enable;
 	dst->isDirty = true;
 	dst->yuv_range = src->yuv_range;
@@ -1118,7 +1117,7 @@ static int set_memory_buffer(disp_session_input_config * input)
 		}
 
 		_sync_convert_fb_layer_to_ovl_struct(input->session_id, &(input->config[i]),&ovl2mem_in_cached_config[layer_id], dst_mva);
-		///disp_sync_put_cached_layer_info(session_id, layer_id, &input->config[i], get_ovl2mem_ticket());
+		
 		mtkfb_update_buf_ticket(session_id, layer_id, input->config[i].next_buff_idx,get_ovl2mem_ticket());
 		_sync_convert_fb_layer_to_disp_input(input->session_id, &(input->config[i]),&input_params[layer_id], dst_mva);
 		input_params[layer_id].dirty = 1;
@@ -1184,8 +1183,8 @@ static int set_external_buffer(disp_session_input_config * input)
 			else
 			{
 				disp_sync_query_buf_info(session_id, layer_id, (unsigned int)input->config[i].next_buff_idx, &dst_mva, &dst_size);
-				//if(dst_size < input->config[i].src_pitch * input->config[i].src_height)
-				//	DISPERR("");
+				
+				
 			}
 
 			if(dst_mva == 0)
@@ -1213,7 +1212,7 @@ static int set_external_buffer(disp_session_input_config * input)
 			DISPPR_FENCE("S+/EL%d/e%d/id%d\n", input->config[i].layer_id, input->config[i].layer_enable, input->config[i].next_buff_idx);
 		}
 
-		///_sync_convert_fb_layer_to_ovl_struct(input->session_id, &(input->config[i]),&external_cached_layer_config[layer_id], dst_mva);
+		
 		disp_sync_put_cached_layer_info(session_id, layer_id, &input->config[i], dst_mva);
 		_sync_convert_fb_layer_to_disp_input(input->session_id, &(input->config[i]),&extd_input[layer_id], dst_mva);
 
@@ -1255,7 +1254,7 @@ static int set_primary_buffer(disp_session_input_config *input)
 	for (i = 0; i < input->config_layer_num; i++)
 	{
 		dst_mva = 0;
-		///DISPMSG("setip i:%d, layer_id:%d, layer_en:%d idx 0x%x\n", i, input->config[i].layer_id, input->config[i].layer_enable, input->config[i].next_buff_idx);
+		
 		layer_id = input->config[i].layer_id;
 		if(layer_id == primary_display_get_option("ASSERT_LAYER") && is_DAL_Enabled())
 		{
@@ -1316,7 +1315,7 @@ static int set_primary_buffer(disp_session_input_config *input)
 
 		if(input->config[i].layer_enable)
 		{
-			// OVL addr is not the start address of buffer, which is calculated by pitch and ROI.
+			
 			mva_offset = primary_input[layer_id].src_x* (primary_input[layer_id].src_pitch/input->config[i].src_pitch) + primary_input[layer_id].src_y * primary_input[layer_id].src_pitch;
 			mtkfb_update_buf_info(input->session_id, input->config[i].layer_id, input->config[i].next_buff_idx, 
 			                                    mva_offset,input->config[i].frm_sequence);
@@ -1414,7 +1413,7 @@ static int _sync_convert_fb_layer_to_disp_output(unsigned int session_id, disp_o
 			layerpitch = 3;
 			layerbpp = 24;
 			break;
-			//xuecheng, ??????
+			
 		case DISP_FORMAT_ARGB8888:
 			dst->fmt = eARGB8888;
 			layerpitch = 4;
@@ -1422,7 +1421,7 @@ static int _sync_convert_fb_layer_to_disp_output(unsigned int session_id, disp_o
 			break;
 
 		case DISP_FORMAT_ABGR8888:
-			//dst->fmt = eABGR8888;
+			
 			dst->fmt = eRGBA8888;
 			layerpitch = 4;
 			layerbpp = 32;
@@ -1434,7 +1433,7 @@ static int _sync_convert_fb_layer_to_disp_output(unsigned int session_id, disp_o
 			break;
 
 		case DISP_FORMAT_BGRA8888:
-			//dst->fmt = eABGR8888;
+			
 			dst->fmt = eBGRA8888;
 			layerpitch = 4;
 			layerbpp = 32;
@@ -1473,7 +1472,6 @@ static int _sync_convert_fb_layer_to_disp_output(unsigned int session_id, disp_o
 	dst->w = src->width;
 	dst->h = src->height;
 
-// set_overlay will not use fence+ion handle
 #if defined (MTK_FB_ION_SUPPORT)
 	if (src->pa != NULL)
 	{
@@ -1492,7 +1490,7 @@ static int _sync_convert_fb_layer_to_disp_output(unsigned int session_id, disp_o
 
 
 #if 0
-	//set Alpha blending
+	
 	dst->alpha = 0xFF;
 	if (DISP_FORMAT_ARGB8888 == src->src_fmt ||DISP_FORMAT_ABGR8888 == src->src_fmt || DISP_FORMAT_RGBA8888 == src->src_fmt || DISP_FORMAT_BGRA8888 == src->src_fmt)
 	{
@@ -1565,7 +1563,7 @@ int _ioctl_set_output_buffer(unsigned long arg)
 
         _sync_convert_fb_layer_to_disp_output(session_output.session_id, &(session_output.config), &primary_output, dst_mva);
         primary_output.dirty = 1;
-        //must be mirror mode
+        
 		if(primary_display_is_decouple_mode())
 		{
 			disp_input_config src;
@@ -1699,7 +1697,7 @@ int _ioctl_get_info(unsigned long arg)
 	else if(DISP_SESSION_TYPE(session_id) == DISP_SESSION_EXTERNAL)
 	{
 #ifdef CONFIG_MTK_HDMI_SUPPORT
-		// this is for session test
+		
         _get_ext_disp_info(&info);
 #endif
 	}
@@ -1834,26 +1832,36 @@ int set_session_mode(disp_session_config * config_info, int force)
 
     if(DISP_SESSION_TYPE(config_info->session_id) == DISP_SESSION_PRIMARY)
     {
-        primary_display_switch_mode(config_info->mode, config_info->session_id, 0);
+	
+	if(config_info->mode == DISP_SESSION_DECOUPLE_MIRROR_MODE)
+	{
+		primary_display_switch_mode(config_info->mode, config_info->session_id, 1);
+	}
+	else
+	{
+		primary_display_switch_mode(config_info->mode, config_info->session_id, 0);
+	}
 
         if(config_info->mode == DISP_SESSION_DIRECT_LINK_MIRROR_MODE || config_info->mode == DISP_SESSION_DECOUPLE_MIRROR_MODE)
-    {
+	{
             _ovl2mem_out_cached_config.mode = config_info->mode;
-}
+	}
         else
         {
             if(_ovl2mem_out_cached_config.mode > 0)
+	    {
                 mtkfb_release_layer_fence(config_info->session_id, DDP_OUTPUT_LAYID);
+	    }
             _ovl2mem_out_cached_config.mode = 0;
         }
     }
-        else
-        {
+    else
+    {
         DISPERR("[FB]: session(0x%x) swith mode(%d) fail \n", config_info->session_id, config_info->mode);
     }
 
 	return (ret);
-    }
+}
 
 int _ioctl_set_session_mode(unsigned long arg)
 {
@@ -1944,7 +1952,7 @@ long mtk_disp_mgr_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
     	int ret = -1;
 
-	//DISPMSG("mtk_disp_mgr_ioctl, cmd=%s, arg=0x%08x\n", _session_ioctl_spy(cmd), arg);
+	
 
 	switch(cmd)
 	{
@@ -1962,7 +1970,7 @@ long mtk_disp_mgr_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		}
 		case DISP_IOCTL_GET_PRESENT_FENCE:
 		{
-			//return _ioctl_prepare_buffer(arg, PREPARE_PRESENT_FENCE);
+			
 			return _ioctl_prepare_present_fence(arg);
 		}
 		case DISP_IOCTL_PREPARE_INPUT_BUFFER:
@@ -2053,8 +2061,8 @@ static long mtk_disp_mgr_compat_ioctl(struct file *file, unsigned int cmd,  unsi
 
 	switch(cmd) {
 
-    // add cases here for 32bit/64bit conversion
-    // ...
+    
+    
 
 	default:
 		return mtk_disp_mgr_ioctl(file,  cmd,  arg);

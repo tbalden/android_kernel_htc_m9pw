@@ -870,8 +870,6 @@ static irqreturn_t mt_eint_demux(unsigned irq, struct irq_desc *desc)
                             printk("[EINT]Warn!EINT:%d run too long,s:%llu,e:%llu,total:%llu\n", index, t1, t2, (t2 - t1));
                     }
                 }
-
-				current_eint_irq = -1;
             }
         }
     }

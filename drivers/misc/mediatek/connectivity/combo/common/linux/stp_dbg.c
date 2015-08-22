@@ -840,7 +840,8 @@ INT32 wcn_core_dump_nl(P_WCN_CORE_DUMP_T dmp, PUINT8 buf, INT32 len)
 		ret = wcn_core_dump_check_end(buf, len);
 		if (ret == 1) {
 			STP_DBG_INFO_FUNC("core dump end!\n");
-			dmp->sm = CORE_DUMP_DONE;
+			osal_timer_stop(&dmp->dmp_timer);
+			dmp->sm = CORE_DUMP_INIT;
 		} else {
 			dmp->sm = CORE_DUMP_DOING;
 		}
@@ -851,7 +852,8 @@ INT32 wcn_core_dump_nl(P_WCN_CORE_DUMP_T dmp, PUINT8 buf, INT32 len)
 		ret = wcn_core_dump_check_end(buf, len);
 		if (ret == 1) {
 			STP_DBG_INFO_FUNC("core dump end!\n");
-			dmp->sm = CORE_DUMP_DONE;
+			osal_timer_stop(&dmp->dmp_timer);
+			dmp->sm = CORE_DUMP_INIT;
 		} else {
 			dmp->sm = CORE_DUMP_DOING;
 		}

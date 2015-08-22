@@ -110,6 +110,10 @@ static struct LCM_setting_table lcm_initialization_setting[] =
 	{0xB9, 7, {0x67, 0x51, 0x1A, 0x10, 0x26, 0x00, 0x00}},
 	{0xBA, 7, {0xCD, 0x51, 0x40, 0x10, 0x4D, 0x00, 0x00}},
 	{0x29,  0, {}},
+
+	{0xB0, 1, {0x04}},
+	{0xF4, 1, {0xFB}},
+
 	{REGFLAG_DELAY, 10, {}},
 	{0x11,  0, {},},
 	{REGFLAG_DELAY, 120, {}},
@@ -120,6 +124,8 @@ static struct LCM_setting_table lcm_suspend_setting[] = {
 	{0x28,  0, {}},
 	{REGFLAG_DELAY, 24, {}},
 	{0x34,  1, {0x00}},
+	{0xB0, 1, {0x04}},
+	{0xF4, 1, {0xB3}},
 	{0x10,  0, {}},
 	{REGFLAG_DELAY, 80, {}},
 	{0x53,  1, {0x00}},
@@ -240,10 +246,10 @@ static void lcm_get_params(LCM_PARAMS *params)
 	params->dsi.lane_swap[MIPITX_PHY_PORT_0][MIPITX_PHY_LANE_RX] = MIPITX_PHY_LANE_0;
 
 	params->pwm_min = 6;
-	params->pwm_default = 88;
+	params->pwm_default = 76;
 	params->pwm_max = 255;
-	params->camera_blk = 189;
-	params->camera_dua_blk = 189;
+	params->camera_blk = 193;
+	params->camera_dua_blk = 193;
 	params->camera_rec_blk = 168;
 	params->dim_cmd = 0x2c;
 }

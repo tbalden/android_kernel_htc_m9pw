@@ -55,7 +55,7 @@ unsigned short *test_frame;
 
 static int touch_init_p2 = 0;
 
-#define TXN_MAX 16384
+#define TXN_MAX (16384 * 2)	
 #define RXN_MAX 4096
 
 #define PROJ_RX_REQ_MAX 4

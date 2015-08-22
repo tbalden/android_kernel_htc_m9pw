@@ -1,415 +1,13 @@
-/*
-** $Id: //Department/DaVinci/BRANCHES/MT6620_WIFI_DRIVER_V2_3/include/nic/nic_tx.h#1 $
-*/
-
-/*! \file   nic_tx.h
-    \brief  Functions that provide TX operation in NIC's point of view.
-
-    This file provides TX functions which are responsible for both Hardware and
-    Software Resource Management and keep their Synchronization.
-
-*/
 
 
 
-/*
-** $Log: nic_tx.h $
-**
-** 09 16 2014 eason.tsai
-** [ALPS01728937] [Need Patch] [Volunteer Patch] MET support
-** MET support
-**
-** 08 19 2013 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** 1. Enable TC resource adjust feature
-** 2. Set Non-QoS data frame to TC5
-**
-** 08 13 2013 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** 1. Assign TXD.PID by wlan index
-** 2. Some bug fix
-**
-** 08 09 2013 cp.wu
-** [BORA00002253] [MT6630 Wi-Fi][Driver][Firmware] Add NLO and timeout mechanism to SCN module
-** 1. integrate scheduled scan functionality
-** 2. condition compilation for linux-3.4 & linux-3.8 compatibility
-** 3. correct CMD queue access to reduce lock scope
-**
-** 08 09 2013 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** 1. Add new TX done result code "TX_RESULT_QUEUE_CLEARANCE"
-** 2. Fix runtime warning for wrong memory mode of kfree mgmt pool
-** 3. Fix memory dump command
-**
-** 08 05 2013 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** 1. Add SW rate definition
-** 2. Add HW default rate selection logic from FW
-**
-** 08 02 2013 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** 1. Set VI/VO Tx life time to no limitation
-** 2. Set VI/VO Tx retry limit to 7
-**
-** 07 18 2013 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** 1. Update TxDesc PF bit setting rule
-** 2. Remove unnecessary QM function
-**
-** 07 10 2013 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** Disable IP/TCP/UDP checksum temporally for 1st connection
-**
-** 07 04 2013 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** Update for 1st Connection.
-**
-** 06 27 2013 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** Refine management frame Tx function
-**
-** 06 26 2013 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** Update Tx DESC definition to lateset version
-**
-** 06 25 2013 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** Update for 1st connection
-**
-** 06 19 2013 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** Update for 1st connection. Set TC4 default resource value for FW_DL cmd
-**
-** 03 29 2013 cp.wu
-** [BORA00002227] [MT6630 Wi-Fi][Driver] Update for Makefile and HIFSYS modifications
-** 1. remove unused HIF definitions
-** 2. enable NDIS 5.1 build success
-**
-** 03 19 2013 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** .
-**
-** 03 14 2013 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** Update packet remaining Tx time
-**
-** 03 12 2013 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** Update Tx utility function for management frame
-**
-** 03 05 2013 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** .
-**
-** 03 04 2013 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** .
-**
-** 02 25 2013 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** <saved by Perforce>
-**
-** 02 01 2013 cp.wu
-** [BORA00002227] [MT6630 Wi-Fi][Driver] Update for Makefile and HIFSYS modifications
-** 1. eliminate MT5931/MT6620/MT6628 logic
-** 2. add firmware download control sequence
-**
-** 01 22 2013 cp.wu
-** [BORA00002253] [MT6630 Wi-Fi][Driver][Firmware] Add NLO and timeout mechanism to SCN module
-** modification for ucBssIndex migration
-**
-** 01 21 2013 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** Update TX path based on new ucBssIndex modifications.
-**
-** 01 17 2013 cm.chang
-** [BORA00002149] [MT6630 Wi-Fi] Initial software development
-** Use ucBssIndex to replace eNetworkTypeIndex
-**
-** 01 15 2013 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** Update Tx done resource release mechanism.
-**
-** 12 27 2012 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** Update MQM index mapping mechanism
-** 1. TID to ACI
-** 2. ACI to SW TxQ
-** 3. ACI to network TC resource
-**
-** 12 26 2012 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** Update TXD format based on latest release.
-**
-** 12 21 2012 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** Update TxD template feature.
-**
-** 12 19 2012 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** Add Tx desc composing function
-**
-** 12 18 2012 terry.wu
-** [BORA00002207] [MT6630 Wi-Fi] TXM & MQM Implementation
-** Page count resource management.
-**
-** 10 25 2012 cp.wu
-** [BORA00002227] [MT6630 Wi-Fi][Driver] Update for Makefile and HIFSYS modifications
-** HIFSYS update: TX done counter is now separated into 16 sets.
-**
-** 09 17 2012 cm.chang
-** [BORA00002149] [MT6630 Wi-Fi] Initial software development
-** Duplicate source from MT6620 v2.3 driver branch
-** (Davinci label: MT6620_WIFI_Driver_V2_3_120913_1942_As_MT6630_Base)
- *
- * 11 18 2011 eddie.chen
- * [WCXRP00001096] [MT6620 Wi-Fi][Driver/FW] Enhance the log function (xlog)
- * Add log counter for tx
- *
- * 11 10 2011 eddie.chen
- * [WCXRP00001096] [MT6620 Wi-Fi][Driver/FW] Enhance the log function (xlog)
- * Add TX_DONE status detail information.
- *
- * 08 15 2011 cp.wu
- * [WCXRP00000851] [MT6628 Wi-Fi][Driver] Add HIFSYS related definition to driver source tree
- * add MT6628-specific definitions.
- *
- * 04 12 2011 cp.wu
- * [WCXRP00000631] [MT6620 Wi-Fi][Driver] Add an API for QM to retrieve current TC counter value and processing frame dropping cases for TC4 path
- * 1. add nicTxGetResource() API for QM to make decisions.
- * 2. if management frames is decided by QM for dropping, the call back is invoked to indicate such a case.
- *
- * 03 21 2011 cp.wu
- * [WCXRP00000540] [MT5931][Driver] Add eHPI8/eHPI16 support to Linux Glue Layer
- * portability improvement
- *
- * 02 16 2011 cp.wu
- * [WCXRP00000449] [MT6620 Wi-Fi][Driver] Refine CMD queue handling by adding an extra API for checking availble count and modify behavior
- * 1. add new API: nicTxGetFreeCmdCount()
- * 2. when there is insufficient command descriptor, nicTxEnqueueMsdu() will drop command packets directly
- *
- * 01 24 2011 cp.wu
- * [WCXRP00000382] [MT6620 Wi-Fi][Driver] Track forwarding packet number with notifying tx thread for serving
- * 1. add an extra counter for tracking pending forward frames.
- * 2. notify TX service thread as well when there is pending forward frame
- * 3. correct build errors leaded by introduction of Wi-Fi direct separation module
- *
- * 12 15 2010 yuche.tsai
- * NULL
- * Update SLT Descriptor number configure in driver.
- *
- * 11 16 2010 yarco.yang
- * [WCXRP00000177] [MT5931 F/W] Performance tuning for 1st connection
- * Update TX buffer count
- *
- * 11 03 2010 cp.wu
- * [WCXRP00000083] [MT5931][Driver][FW] Add necessary logic for MT5931 first connection
- * 1) use 8 buffers for MT5931 which is equipped with less memory
- * 2) modify MT5931 debug level to TRACE when download is successful
- *
- * 10 18 2010 cp.wu
- * [WCXRP00000117] [MT6620 Wi-Fi][Driver] Add logic for suspending driver when MT6620 is not responding anymore
- * 1. when wlanAdapterStop() failed to send POWER CTRL command to firmware, do not poll for ready bit dis-assertion
- * 2. shorten polling count for shorter response time
- * 3. if bad I/O operation is detected during TX resource polling, then further operation is aborted as well
- *
- * 10 06 2010 cp.wu
- * [WCXRP00000052] [MT6620 Wi-Fi][Driver] Eliminate Linux Compile Warning
- * code reorganization to improve isolation between GLUE and CORE layers.
- *
- * 09 03 2010 kevin.huang
- * NULL
- * Refine #include sequence and solve recursive/nested #include issue
- *
- * 08 30 2010 cp.wu
- * NULL
- * API added: nicTxPendingPackets(), for simplifying porting layer
- *
- * 07 26 2010 cp.wu
- *
- * change TC4 initial value from 2 to 4.
- *
- * 07 13 2010 cp.wu
- *
- * 1) MMPDUs are now sent to MT6620 by CMD queue for keeping strict order of 1X/MMPDU/CMD packets
- * 2) integrate with qmGetFrameAction() for deciding which MMPDU/1X could pass checking for sending
- * 2) enhance CMD_INFO_T descriptor number from 10 to 32 to avoid descriptor underflow under concurrent network operation
- *
- * 07 08 2010 cp.wu
- *
- * [WPD00003833] [MT6620 and MT5931] Driver migration - move to new repository.
- *
- * 07 06 2010 yarco.yang
- * [WPD00003837][MT6620]Data Path Refine
- * Add MGMT Packet type for HIF_TX_HEADER
- *
- * 06 23 2010 cp.wu
- * [WPD00003833][MT6620 and MT5931] Driver migration
- * integrate .
- *
- * 06 21 2010 cp.wu
- * [WPD00003833][MT6620 and MT5931] Driver migration
- * refine TX-DONE callback.
- *
- * 06 21 2010 cp.wu
- * [WPD00003833][MT6620 and MT5931] Driver migration
- * TX descriptors are now allocated once for reducing allocation overhead
- *
- * 06 21 2010 cp.wu
- * [WPD00003833][MT6620 and MT5931] Driver migration
- * specify correct value for management frames.
- *
- * 06 11 2010 cp.wu
- * [WPD00003833][MT6620 and MT5931] Driver migration
- * 1) migrate assoc.c.
- * 2) add ucTxSeqNum for tracking frames which needs TX-DONE awareness
- * 3) add configuration options for CNM_MEM and RSN modules
- * 4) add data path for management frames
- * 5) eliminate rPacketInfo of MSDU_INFO_T
- *
- * 06 10 2010 cp.wu
- * [WPD00003833][MT6620 and MT5931] Driver migration
- * 1) add flag on MSDU_INFO_T for indicating BIP frame and forceBasicRate
- * 2) add  packet type for indicating management frames
- *
- * 06 09 2010 cp.wu
- * [WPD00003833][MT6620 and MT5931] Driver migration
- * add necessary changes to driver data paths.
- *
- * 06 09 2010 cp.wu
- * [WPD00003833][MT6620 and MT5931] Driver migration
- * add TX_PACKET_MGMT to indicate the frame is coming from management modules
- *
- * 06 07 2010 cp.wu
- * [WPD00003833][MT6620 and MT5931] Driver migration
- * merge wlan_def.h.
- *
- * 06 06 2010 kevin.huang
- * [WPD00003832][MT6620 5931] Create driver base
- * [MT6620 5931] Create driver base
- *
- * 03 30 2010 cp.wu
- * [WPD00001943]Create WiFi test driver framework on WinXP
- * remove driver-land statistics.
- *
- * 03 24 2010 cp.wu
- * [WPD00001943]Create WiFi test driver framework on WinXP
- * generate information for OID_GEN_RCV_OK & OID_GEN_XMIT_OK
- *  *  *
- *
- * 03 10 2010 cp.wu
- * [WPD00001943]Create WiFi test driver framework on WinXP
- * code clean: removing unused variables and structure definitions
- *
- * 03 02 2010 tehuang.liu
- * [WPD00001943]Create WiFi test driver framework on WinXP
- * Redistributed the initial TC resources for normal operation
- *
- * 03 02 2010 cp.wu
- * [WPD00001943]Create WiFi test driver framework on WinXP
- * add mutex to avoid multiple access to qmTxQueue simultaneously.
- *
- * 02 23 2010 cp.wu
- * [WPD00001943]Create WiFi test driver framework on WinXP
- * add new API: wlanProcessQueuedPackets()
- *
- * 02 10 2010 cp.wu
- * [WPD00001943]Create WiFi test driver framework on WinXP
- * 1) remove unused function in nic_rx.c [which has been handled in que_mgt.c]
- *  *  * 2) firmware image length is now retrieved via NdisFileOpen
- *  *  * 3) firmware image is not structured by (P_IMG_SEC_HDR_T) anymore
- *  *  * 4) nicRxWaitResponse() revised
- *  *  * 5) another set of TQ counter default value is added for fw-download state
- *  *  * 6) Wi-Fi load address is now retrieved from registry too
- *
- * 02 09 2010 cp.wu
- * [WPD00001943]Create WiFi test driver framework on WinXP
- * 1. Permanent and current MAC address are now retrieved by CMD/EVENT packets instead of hard-coded address
- *  *  *  * 2. follow MSDN defined behavior when associates to another AP
- *  *  *  * 3. for firmware download, packet size could be up to 2048 bytes
- *
- * 01 27 2010 cp.wu
- * [WPD00001943]Create WiFi test driver framework on WinXP
- * 1. eliminate improper variable in rHifInfo
- *  *  *  *  * 2. block TX/ordinary OID when RF test mode is engaged
- *  *  *  *  * 3. wait until firmware finish operation when entering into and leaving from RF test mode
- *  *  *  *  * 4. correct some HAL implementation
- *
- * 01 13 2010 tehuang.liu
- * [WPD00001943]Create WiFi test driver framework on WinXP
- * Enabled the Burst_End Indication mechanism
- *
- * 12 30 2009 cp.wu
- * [WPD00001943]Create WiFi test driver framework on WinXP
- * 1) According to CMD/EVENT documentation v0.8,
- *  *  *  *  * OID_CUSTOM_TEST_RX_STATUS & OID_CUSTOM_TEST_TX_STATUS is no longer used,
- *  *  *  *  * and result is retrieved by get ATInfo instead
- *  *  *  *  * 2) add 4 counter for recording aggregation statistics
-**  \main\maintrunk.MT6620WiFiDriver_Prj\24 2009-12-10 16:53:28 GMT mtk02752
-**  remove unused API
-**  \main\maintrunk.MT6620WiFiDriver_Prj\23 2009-11-27 11:08:00 GMT mtk02752
-**  add flush for reset
-**  \main\maintrunk.MT6620WiFiDriver_Prj\22 2009-11-24 19:56:49 GMT mtk02752
-**  remove redundant eTC
-**  \main\maintrunk.MT6620WiFiDriver_Prj\21 2009-11-23 22:01:08 GMT mtk02468
-**  Added MSDU_INFO fields for composing HIF TX header
-**  \main\maintrunk.MT6620WiFiDriver_Prj\20 2009-11-17 22:40:51 GMT mtk01084
-**  \main\maintrunk.MT6620WiFiDriver_Prj\19 2009-11-17 17:35:05 GMT mtk02752
-**  + nicTxMsduInfoList() for sending MsduInfoList
-**  + NIC_TX_BUFF_COUNT_TC[0~5]
-**  \main\maintrunk.MT6620WiFiDriver_Prj\18 2009-11-17 11:07:00 GMT mtk02752
-**  add nicTxAdjustTcq() API
-**  \main\maintrunk.MT6620WiFiDriver_Prj\17 2009-11-16 22:28:30 GMT mtk02752
-**  move aucFreeBufferCount/aucMaxNumOfBuffer into another structure
-**  \main\maintrunk.MT6620WiFiDriver_Prj\16 2009-11-16 21:44:50 GMT mtk02752
-**  + nicTxReturnMsduInfo()
-**  + nicTxFillMsduInfo()
-**  + rFreeMsduInfoList field in TX_CTRL
-**  \main\maintrunk.MT6620WiFiDriver_Prj\15 2009-11-16 18:00:43 GMT mtk02752
-**  use P_PACKET_INFO_T for prPacket to avoid inventing another new structure for packet
-**  \main\maintrunk.MT6620WiFiDriver_Prj\14 2009-11-16 15:28:49 GMT mtk02752
-**  add ucQueuedPacketNum for indicating how many packets are queued by per STA/AC queue
-**  \main\maintrunk.MT6620WiFiDriver_Prj\13 2009-11-16 10:52:01 GMT mtk02752
-**  \main\maintrunk.MT6620WiFiDriver_Prj\12 2009-11-14 23:39:24 GMT mtk02752
-**  interface structure redefine
-**  \main\maintrunk.MT6620WiFiDriver_Prj\11 2009-11-13 21:17:03 GMT mtk02752
-**  \main\maintrunk.MT6620WiFiDriver_Prj\10 2009-10-29 19:53:10 GMT mtk01084
-**  remove strange code by Frog
-**  \main\maintrunk.MT6620WiFiDriver_Prj\9 2009-10-13 21:59:04 GMT mtk01084
-**  update for new HW architecture design
-**  \main\maintrunk.MT6620WiFiDriver_Prj\8 2009-10-02 13:53:03 GMT mtk01725
-**  \main\maintrunk.MT6620WiFiDriver_Prj\7 2009-04-28 10:36:50 GMT mtk01461
-**  Add declaration of nicTxReleaseResource()
-**  \main\maintrunk.MT6620WiFiDriver_Prj\6 2009-04-17 19:58:39 GMT mtk01461
-**  Move CMD_INFO_T related define and function to cmd_buf.h
-**  \main\maintrunk.MT6620WiFiDriver_Prj\5 2009-04-01 10:53:53 GMT mtk01461
-**  Add function for SDIO_TX_ENHANCE
-**  \main\maintrunk.MT6620WiFiDriver_Prj\4 2009-03-23 00:33:27 GMT mtk01461
-**  Define constants for TX PATH and add nicTxPollingResource
-**  \main\maintrunk.MT6620WiFiDriver_Prj\3 2009-03-16 09:09:32 GMT mtk01461
-**  Update TX PATH API
-**  \main\maintrunk.MT6620WiFiDriver_Prj\2 2009-03-10 20:16:38 GMT mtk01426
-**  Init for develop
-**
-*/
+
 
 #ifndef _NIC_TX_H
 #define _NIC_TX_H
 
-/*******************************************************************************
-*                         C O M P I L E R   F L A G S
-********************************************************************************
-*/
 
-/*******************************************************************************
-*                    E X T E R N A L   R E F E R E N C E S
-********************************************************************************
-*/
 
-/*******************************************************************************
-*                              C O N S T A N T S
-********************************************************************************
-*/
 
 #define MAC_TX_RESERVED_FIELD               0 
 
@@ -418,7 +16,6 @@
 
 #define NIC_TX_CMD_INFO_RESERVED_COUNT      4
 
-/* Maximum buffer count for individual HIF TCQ */
 #define NIC_TX_PAGE_COUNT_TC0           (NIC_TX_BUFF_COUNT_TC0 * NIC_TX_MAX_PAGE_PER_FRAME)
 #define NIC_TX_PAGE_COUNT_TC1           (NIC_TX_BUFF_COUNT_TC1 * NIC_TX_MAX_PAGE_PER_FRAME)
 #define NIC_TX_PAGE_COUNT_TC2           (NIC_TX_BUFF_COUNT_TC2 * NIC_TX_MAX_PAGE_PER_FRAME)
@@ -455,45 +52,30 @@
 
 #define NIC_TX_ENABLE_SECOND_HW_QUEUE            0
 
-/* 4 TODO: The following values shall be got from FW by query CMD */
-/*------------------------------------------------------------------------*/
-/* Resource Management related information                                */
-/*------------------------------------------------------------------------*/
 #define NIC_TX_PAGE_SIZE_IS_POWER_OF_2          TRUE
 #define NIC_TX_PAGE_SIZE_IN_POWER_OF_2          7
-#define NIC_TX_PAGE_SIZE                        128	/* in unit of bytes */
+#define NIC_TX_PAGE_SIZE                        128	
 
-/* For developement only */
-#define NIC_TX_MAX_SIZE_PER_FRAME               1532	/* calculated by MS native 802.11 format */
+#define NIC_TX_MAX_SIZE_PER_FRAME               1532	
 #define NIC_TX_MAX_PAGE_PER_FRAME \
     ((NIC_TX_DESC_AND_PADDING_LENGTH + NIC_TX_DESC_HEADER_PADDING_LENGTH + \
           NIC_TX_MAX_SIZE_PER_FRAME + NIC_TX_PAGE_SIZE - 1) / NIC_TX_PAGE_SIZE)
 
-/*------------------------------------------------------------------------*/
-/* Tx descriptor related information                                      */
-/*------------------------------------------------------------------------*/
 
-/* Frame Buffer
-*  |<--Tx Descriptor-->|<--Tx descriptor padding-->|<--802.3/802.11 Header-->|<--Header padding-->|<--Payload-->|
-*/
 
-/* Tx descriptor length by format (TXD.FT) */
-#define NIC_TX_DESC_LONG_FORMAT_LENGTH_DW       7	/* in unit of double word */
+#define NIC_TX_DESC_LONG_FORMAT_LENGTH_DW       7	
 #define NIC_TX_DESC_LONG_FORMAT_LENGTH          DWORD_TO_BYTE(NIC_TX_DESC_LONG_FORMAT_LENGTH_DW)
-#define NIC_TX_DESC_SHORT_FORMAT_LENGTH_DW      2	/* in unit of double word */
+#define NIC_TX_DESC_SHORT_FORMAT_LENGTH_DW      2	
 #define NIC_TX_DESC_SHORT_FORMAT_LENGTH         DWORD_TO_BYTE(NIC_TX_DESC_SHORT_FORMAT_LENGTH_DW)
 
-/* Tx descriptor padding length (DMA.MICR.TXDSCR_PAD) */
-#define NIC_TX_DESC_PADDING_LENGTH_DW           0	/* in unit of double word */
+#define NIC_TX_DESC_PADDING_LENGTH_DW           0	
 #define NIC_TX_DESC_PADDING_LENGTH              DWORD_TO_BYTE(NIC_TX_DESC_PADDING_LENGTH_DW)
 
 #define NIC_TX_DESC_AND_PADDING_LENGTH          (NIC_TX_DESC_LONG_FORMAT_LENGTH + NIC_TX_DESC_PADDING_LENGTH)
 
-/* Tx header padding (TXD.HeaderPadding)  */
-/* Warning!! To use MAC header padding, every Tx packet must be decomposed */
-#define NIC_TX_DESC_HEADER_PADDING_LENGTH       0	/* in unit of bytes */
+#define NIC_TX_DESC_HEADER_PADDING_LENGTH       0	
 
-#define NIC_TX_DEFAULT_WLAN_INDEX               31	/* For Tx packets to peer who has no WLAN table index. */
+#define NIC_TX_DEFAULT_WLAN_INDEX               31	
 
 #define NIC_TX_DESC_PID_RESERVED                0
 #define NIC_TX_DESC_DRIVER_PID_MIN              1
@@ -502,15 +84,11 @@
 #define NIC_TX_DATA_DEFAULT_RETRY_COUNT_LIMIT   7
 #define NIC_TX_MGMT_DEFAULT_RETRY_COUNT_LIMIT   30
 
-#define NIC_TX_AC_BE_REMAINING_TX_TIME          TX_DESC_TX_TIME_NO_LIMIT	/* in unit of ms */
-#define NIC_TX_AC_BK_REMAINING_TX_TIME          TX_DESC_TX_TIME_NO_LIMIT	/* in unit of ms */
-#define NIC_TX_AC_VO_REMAINING_TX_TIME          TX_DESC_TX_TIME_NO_LIMIT	/* in unit of ms */
-#define NIC_TX_AC_VI_REMAINING_TX_TIME          TX_DESC_TX_TIME_NO_LIMIT	/* in unit of ms */
+#define NIC_TX_AC_BE_REMAINING_TX_TIME          TX_DESC_TX_TIME_NO_LIMIT	
+#define NIC_TX_AC_BK_REMAINING_TX_TIME          TX_DESC_TX_TIME_NO_LIMIT	
+#define NIC_TX_AC_VO_REMAINING_TX_TIME          TX_DESC_TX_TIME_NO_LIMIT	
+#define NIC_TX_AC_VI_REMAINING_TX_TIME          TX_DESC_TX_TIME_NO_LIMIT	
 
-/*------------------------------------------------------------------------*/
-/* Tx descriptor field related information                                                                 */
-/*------------------------------------------------------------------------*/
-/* DW 0 */
 #define TX_DESC_TX_BYTE_COUNT_MASK              BITS(0, 15)
 #define TX_DESC_TX_BYTE_COUNT_OFFSET            0
 
@@ -529,17 +107,16 @@
 #define PORT_INDEX_MCU                          1
 
 
-/* DW 1 */
 #define TX_DESC_WLAN_INDEX_MASK                 BITS(0, 7)
 #define TX_DESC_WLAN_INDEX_OFFSET               0
 
 #define TX_DESC_HEADER_FORMAT_MASK              BITS(5, 6)
 #define TX_DESC_HEADER_FORMAT_OFFSET            5
 
-#define HEADER_FORMAT_NON_802_11                0   /* Non-802.11 */
-#define HEADER_FORMAT_COMMAND                   1   /* Command */
-#define HEADER_FORMAT_802_11_NORMAL_MODE        2   /* 802.11 (normal mode) */
-#define HEADER_FORMAT_802_11_ENHANCE_MODE       3	/* 802.11 (Enhancement mode) */
+#define HEADER_FORMAT_NON_802_11                0   
+#define HEADER_FORMAT_COMMAND                   1   
+#define HEADER_FORMAT_802_11_NORMAL_MODE        2   
+#define HEADER_FORMAT_802_11_ENHANCE_MODE       3	
 #define HEADER_FORMAT_802_11_MASK               BIT(1)
 
 #define TX_DESC_NON_802_11_MORE_DATA            BIT(0)
@@ -564,12 +141,11 @@
 #define TX_DESC_TID_NUM                         8
 #define TX_DESC_PROTECTED_FRAME                 BIT(7)
 
-#define TX_DESC_PACKET_TYPE_MASK                BITS(0, 1)  /* SW Field */
+#define TX_DESC_PACKET_TYPE_MASK                BITS(0, 1)  
 #define TX_DESC_PACKET_TYPE_OFFSET              0
 #define TX_DESC_OWN_MAC_MASK                    BITS(2, 7)
 #define TX_DESC_OWN_MAC_OFFSET                  2
 
-/* DW 2 */
 #define TX_DESC_SUB_TYPE_MASK                   BITS(0, 3)
 #define TX_DESC_SUB_TYPE_OFFSET                 0
 #define TX_DESC_TYPE_MASK                       BITS(4, 5)
@@ -591,7 +167,6 @@
 
 #define TX_DESC_REMAINING_MAX_TX_TIME           BITS(0, 7)
 #define TX_DESC_TX_TIME_NO_LIMIT                0
-/* Unit of life time calculation of Tx descriptor */
 #define TX_DESC_LIFE_TIME_UNIT_IN_POWER_OF_2    5      
 #define TX_DESC_LIFE_TIME_UNIT                  POWER_OF_2(TX_DESC_LIFE_TIME_UNIT_IN_POWER_OF_2)
 #define TX_DESC_POWER_OFFSET_MASK               BITS(0, 4)
@@ -599,7 +174,6 @@
 #define TX_DESC_TIMING_MEASUREMENT              BIT(6)
 #define TX_DESC_FIXED_RATE                      BIT(7)
 
-/* DW 3 */
 #define TX_DESC_SW_RESERVED_MASK                BITS(0, 5)
 #define TX_DESC_SW_RESERVED_OFFSET              0
 #define TX_DESC_TX_COUNT_MASK                   BITS(6, 10)
@@ -614,10 +188,8 @@
 #define TX_DESC_PN_IS_VALID                     BIT(14)
 #define TX_DESC_SN_IS_VALID                     BIT(15)
 
-/* DW 4 */
 #define TX_DESC_PN_PART1                        BITS(0, 31)
 
-/* DW 5 */
 #define TX_DESC_PACKET_ID                       BIT(0, 7)
 #define TX_DESC_TX_STATUS_FORMAT                BIT(0)
 #define TX_DESC_TX_STATUS_FORMAT_OFFSET         0
@@ -628,7 +200,7 @@
 #define TX_DESC_POWER_MANAGEMENT_CONTROL        BIT(5)
 #define TX_DESC_PN_PART2                        BITS(0, 15)
 
-	   /* DW 6 *//* FR = 1 */
+	   
 #define TX_DESC_FIXED_RATE_MODE                 BIT(0)
 #define TX_DESC_ANTENNA_INDEX_MASK              BITS(2, 7)
 #define TX_DESC_ANTENNA_INDEX_OFFSET            2
@@ -646,43 +218,32 @@
 #define TX_DESC_GUARD_INTERVAL                  BIT(15)
 
 #if CFG_ENABLE_PKT_LIFETIME_PROFILE
-#define NIC_TX_TIME_THRESHOLD                       100	/* in unit of ms */
+#define NIC_TX_TIME_THRESHOLD                       100	
 #endif
 
 
-/*******************************************************************************
-*                             D A T A   T Y P E S
-********************************************************************************
-*/
-/* 3 */ /* Session for TX QUEUES */
-/* The definition in this ENUM is used to categorize packet's Traffic Class according
- * to the their TID(User Priority).
- * In order to achieve QoS goal, a particular TC should not block the process of
- * another packet with different TC.
- * In current design we will have 5 categories(TCs) of SW resource.
- */
-/* HIF Tx interrupt status queue index*/
+#define NIC_TX_NO_RESOURCE_THRESHOLD            10
+ 
 typedef enum _ENUM_HIF_TX_INDEX_T {
-    HIF_TX_AC0_INDEX = 0,   /* HIF TX: AC0 packets */
-    HIF_TX_AC1_INDEX,       /* HIF TX: AC1 packets */
-    HIF_TX_AC2_INDEX,       /* HIF TX: AC2 packets */
-    HIF_TX_AC3_INDEX,       /* HIF TX: AC3 packets */
-    HIF_TX_AC4_INDEX,       /* HIF TX: AC4 packets */
-    HIF_TX_AC5_INDEX,       /* HIF TX: AC5 packets */
-    HIF_TX_AC6_INDEX,       /* HIF TX: AC6 packets */
-    HIF_TX_BMC_INDEX,       /* HIF TX: BMC packets */
-    HIF_TX_BCN_INDEX,       /* HIF TX: BCN packets */
-    HIF_TX_AC10_INDEX,      /* HIF TX: AC10 packets */
-    HIF_TX_AC11_INDEX,      /* HIF TX: AC11 packets */
-    HIF_TX_AC12_INDEX,      /* HIF TX: AC12 packets */
-    HIF_TX_AC13_INDEX,      /* HIF TX: AC13 packets */
-    HIF_TX_AC14_INDEX,      /* HIF TX: AC14 packets */
-    HIF_TX_FFA_INDEX,       /* HIF TX: free-for-all */
-    HIF_TX_CPU_INDEX,       /* HIF TX: CPU */
-    HIF_TX_NUM       /* Maximum number of HIF TX port. */
+    HIF_TX_AC0_INDEX = 0,   
+    HIF_TX_AC1_INDEX,       
+    HIF_TX_AC2_INDEX,       
+    HIF_TX_AC3_INDEX,       
+    HIF_TX_AC4_INDEX,       
+    HIF_TX_AC5_INDEX,       
+    HIF_TX_AC6_INDEX,       
+    HIF_TX_BMC_INDEX,       
+    HIF_TX_BCN_INDEX,       
+    HIF_TX_AC10_INDEX,      
+    HIF_TX_AC11_INDEX,      
+    HIF_TX_AC12_INDEX,      
+    HIF_TX_AC13_INDEX,      
+    HIF_TX_AC14_INDEX,      
+    HIF_TX_FFA_INDEX,       
+    HIF_TX_CPU_INDEX,       
+    HIF_TX_NUM       
 } ENUM_HIF_TX_INDEX_T;
 
-/* LMAC Tx queue index */
 typedef enum _ENUM_MAC_TXQ_INDEX_T {
     MAC_TXQ_AC0_INDEX = 0,
     MAC_TXQ_AC1_INDEX,
@@ -701,7 +262,6 @@ typedef enum _ENUM_MAC_TXQ_INDEX_T {
     MAC_TXQ_NUM
 } ENUM_MAC_TXQ_INDEX_T;
 
-/* MCU quque index */
 typedef enum _ENUM_MCU_Q_INDEX_T {
     MCU_Q0_INDEX = 0,
     MCU_Q1_INDEX,
@@ -710,38 +270,36 @@ typedef enum _ENUM_MCU_Q_INDEX_T {
     MCU_Q_NUM
 } ENUM_MCU_Q_INDEX_T;
 
-/* Tc Resource index */
 typedef enum _ENUM_TRAFFIC_CLASS_INDEX_T {
-	/*First HW queue */
-    TC0_INDEX = 0,   /* HIF TX: AC0 packets */
-    TC1_INDEX,       /* HIF TX: AC1 packets */
-    TC2_INDEX,       /* HIF TX: AC2 packets */
-    TC3_INDEX,       /* HIF TX: AC3 packets */
-    TC4_INDEX,       /* HIF TX: CPU packets */
-    TC5_INDEX,       /* HIF TX: AC4 packets */
+	
+    TC0_INDEX = 0,   
+    TC1_INDEX,       
+    TC2_INDEX,       
+    TC3_INDEX,       
+    TC4_INDEX,       
+    TC5_INDEX,       
 
-    /* Second HW queue */
+    
 #if NIC_TX_ENABLE_SECOND_HW_QUEUE
-    TC6_INDEX,       /* HIF TX: AC10 packets */
-    TC7_INDEX,       /* HIF TX: AC11 packets */
-    TC8_INDEX,       /* HIF TX: AC12 packets */
-    TC9_INDEX,       /* HIF TX: AC13 packets */
-    TC10_INDEX,      /* HIF TX: AC14 packets */
+    TC6_INDEX,       
+    TC7_INDEX,       
+    TC8_INDEX,       
+    TC9_INDEX,       
+    TC10_INDEX,      
 #endif
 
-    TC_NUM           /* Maximum number of Traffic Classes. */
+    TC_NUM           
 } ENUM_TRAFFIC_CLASS_INDEX_T;
 
-/* per-Network Tc Resource index */
 typedef enum _ENUM_NETWORK_TC_RESOURCE_INDEX_T {
-    /* QoS Data frame, WMM AC index */
+    
     NET_TC_WMM_AC_BE_INDEX = 0,
     NET_TC_WMM_AC_BK_INDEX,
     NET_TC_WMM_AC_VI_INDEX,
     NET_TC_WMM_AC_VO_INDEX,
-    /* Mgmt frame */
+    
     NET_TC_MGMT_INDEX,
-    /* nonQoS / non StaRec frame (BMC/non-associated frame) */
+    
     NET_TC_NON_STAREC_NON_QOS_INDEX,
 
     NET_TC_NUM
@@ -771,36 +329,36 @@ typedef enum _ENUM_MSDU_OPTION_T {
     MSDU_OPT_TIMING_MEASURE             = BIT(2),
     MSDU_OPT_RCPI_NOISE_STATUS          = BIT(3),
 
-    /* Option by Frame Format */
-    /* Non-80211 */
-    MSDU_OPT_MORE_DATA                  = BIT(4),
-	MSDU_OPT_REMOVE_VLAN = BIT(5),	/* Remove VLAN tag if exists */
     
-    /* 80211-enhanced */    
+    
+    MSDU_OPT_MORE_DATA                  = BIT(4),
+	MSDU_OPT_REMOVE_VLAN = BIT(5),	
+    
+        
     MSDU_OPT_AMSDU                      = BIT(6),
 
-    /* 80211-enhanced & Non-80211 */
+    
     MSDU_OPT_EOSP                       = BIT(7),
     
-    /* Beamform */
+    
     MSDU_OPT_NDP                        = BIT(8),
     MSDU_OPT_NDPA                       = BIT(9),
     MSDU_OPT_SOUNDING                   = BIT(10),
 
-    /* Protection */
+    
     MSDU_OPT_FORCE_RTS                  = BIT(11),
 
-    /* Security */
+    
     MSDU_OPT_BIP                        = BIT(12),
     MSDU_OPT_PROTECTED_FRAME            = BIT(13),
 
-    /* SW Field */
+    
     MSDU_OPT_SW_DURATION                = BIT(14),
     MSDU_OPT_SW_PS_BIT                  = BIT(15),
     MSDU_OPT_SW_HTC                     = BIT(16),
     MSDU_OPT_SW_BAR_SN                  = BIT(17),
 
-    /* Manual Mode */
+    
     MSDU_OPT_MANUAL_FIRST_BIT           = BIT(18),
 
     MSDU_OPT_MANUAL_LIFE_TIME           = MSDU_OPT_MANUAL_FIRST_BIT,
@@ -819,23 +377,23 @@ typedef enum _ENUM_MSDU_CONTROL_FLAG_T {
 typedef enum _ENUM_MSDU_RATE_MODE_T {
     MSDU_RATE_MODE_AUTO = 0,
     MSDU_RATE_MODE_MANUAL_DESC,
-    /* The following rate mode is not implemented yet */
-    /* DON'T use!!! */    
+    
+        
     MSDU_RATE_MODE_MANUAL_CR
 } ENUM_MSDU_RATE_MODE_T;
 
 typedef struct _TX_TCQ_STATUS_T {
-    /* HIF reported page count delta */
-    UINT_16                 au2TxDonePageCount[TC_NUM];     /* other TC */
+    
+    UINT_16                 au2TxDonePageCount[TC_NUM];     
     UINT_16                 au2PreUsedPageCount[TC_NUM];
-    UINT_16                 u2AvaliablePageCount;           /* FFA */
-    UINT_8                  ucNextTcIdx;                    /* For round-robin distribute free page count */
+    UINT_16                 u2AvaliablePageCount;           
+    UINT_8                  ucNextTcIdx;                    
 
-    /* distributed page count */
+    
     UINT_16                 au2FreePageCount[TC_NUM];
     UINT_16                 au2MaxNumOfPage[TC_NUM];
 
-    /* buffer count */
+    
     UINT_16                 au2FreeBufferCount[TC_NUM];
     UINT_16                 au2MaxNumOfBuffer[TC_NUM];
 } TX_TCQ_STATUS_T, *P_TX_TCQ_STATUS_T;
@@ -854,7 +412,6 @@ typedef struct _TX_CTRL_T {
 
     UINT_32                 u4TotalTxRsvPageNum;
 
-/* Elements below is classified according to TC (Traffic Class) value. */
 
     TX_TCQ_STATUS_T         rTc;
 
@@ -862,11 +419,11 @@ typedef struct _TX_CTRL_T {
 
     QUE_T                   rFreeMsduInfoList;
 
-    /* Management Frame Tracking */
-    /* number of management frames to be sent */
+    
+    
     INT_32                  i4TxMgmtPendingNum;
 
-    /* to tracking management frames need TX done callback */
+    
     QUE_T                   rTxMgmtTxingQueue;
 
 #if CFG_HIF_STATISTICS
@@ -875,15 +432,16 @@ typedef struct _TX_CTRL_T {
 #endif
     UINT_32                 au4Statistics[TX_STATISTIC_COUNTER_NUM];
 
-    /* Number to track forwarding frames */
+    
     INT_32                  i4PendingFwdFrameCount;
 
+    UINT_32 u4ConsecutiveNoResouceCnt;
 } TX_CTRL_T, *P_TX_CTRL_T;
 
 typedef enum _ENUM_TX_PACKET_TYPE_T {
     TX_PACKET_TYPE_DATA = 0,
     TX_PACKET_TYPE_MGMT,
-	/* TX_PACKET_TYPE_1X, */
+	
     X_PACKET_TYPE_NUM
 } ENUM_TX_PACKET_TYPE_T, *P_ENUM_TX_PACKET_TYPE_T;
 
@@ -895,7 +453,6 @@ typedef enum _ENUM_TX_PACKET_SRC_T {
     TX_PACKET_NUM
 } ENUM_TX_PACKET_SRC_T;
 
-/* TX Call Back Function  */
 typedef WLAN_STATUS(*PFN_TX_DONE_HANDLER) (IN P_ADAPTER_T prAdapter,
     IN P_MSDU_INFO_T            prMsduInfo,
 					   IN ENUM_TX_RESULT_CODE_T rTxDoneStatus);
@@ -915,137 +472,119 @@ typedef struct _PKT_PROFILE_T {
     OS_SYSTIME rHifTxDoneTimestamp;
 } PKT_PROFILE_T, *P_PKT_PROFILE_T;
 #endif
-/* TX transactions could be divided into 4 kinds:
- *
- * 1) 802.1X / Bluetooth-over-Wi-Fi Security Frames
- *    [CMD_INFO_T] - [prPacket] - in skb or NDIS_PACKET form
- *
- * 2) MMPDU
- *    [CMD_INFO_T] - [prPacket] - [MSDU_INFO_T] - [prPacket] - direct buffer for frame body
- *
- * 3) Command Packets
- *    [CMD_INFO_T] - [pucInfoBuffer] - direct buffer for content of command packet
- *
- * 4) Normal data frame
- *    [MSDU_INFO_T] - [prPacket] - in skb or NDIS_PACKET form
- */
 
 
-/* PS_FORWARDING_TYPE_NON_PS means that the receiving STA is in Active Mode
-*   from the perspective of host driver (maybe not synchronized with FW --> SN is needed)
-*/
 
 struct _MSDU_INFO_T {
     QUE_ENTRY_T                 rQueEntry;
-    P_NATIVE_PACKET             prPacket;               /* Pointer to packet buffer */
+    P_NATIVE_PACKET             prPacket;               
 
-    ENUM_TX_PACKET_SRC_T        eSrc;                   /* specify OS/FORWARD packet */
-    UINT_8                      ucUserPriority;         /* QoS parameter, convert to TID */
+    ENUM_TX_PACKET_SRC_T        eSrc;                   
+    UINT_8                      ucUserPriority;         
 
-    /* For composing TX descriptor header */
-    UINT_8                      ucTC;                   /* Traffic Class: 0~4 (HIF TX0), 5 (HIF TX1) */
-    UINT_8                      ucPacketType;           /* 0: Data, 1: Management Frame */
-    UINT_8                      ucStaRecIndex;          /* STA_REC index */
-    UINT_8                      ucBssIndex;             /* BSS_INFO_T index */
-    UINT_8                      ucWlanIndex;            /* Wlan entry index */
     
-    BOOLEAN                     fgIs802_1x;             /* TRUE: 802.1x frame */
-    BOOLEAN                     fgIs802_11;             /* TRUE: 802.11 header is present */
-    BOOLEAN                     fgIs802_3;              /* TRUE: 802.3 frame */
-    BOOLEAN                     fgIsVlanExists;         /* TRUE: VLAN tag is exists */
+    UINT_8                      ucTC;                   
+    UINT_8                      ucPacketType;           
+    UINT_8                      ucStaRecIndex;          
+    UINT_8                      ucBssIndex;             
+    UINT_8                      ucWlanIndex;            
+    
+    BOOLEAN                     fgIs802_1x;             
+    BOOLEAN                     fgIs802_11;             
+    BOOLEAN                     fgIs802_3;              
+    BOOLEAN                     fgIsVlanExists;         
 
-	/* BOOLEAN                     fgIsBIP;                */ /* Management Frame Protection */
-	/* BOOLEAN                     fgIsBasicRate;      */ /* Force Basic Rate Transmission */
-	/* BOOLEAN                     fgIsMoreData;      */ /* More data */
-	/* BOOLEAN                     fgIsEOSP;            */ /* End of service period */
+	 
+	 
+	 
+	 
 
-    /* Special Option */
-    UINT_32                     u4Option;               /* Special option in bitmask, no ACK, etc... */
-    INT_8                       cPowerOffset;           /* Per-packet power offset, in 2's complement */
-    UINT_16                     u2SwSN;                 /* SW assigned sequence number */
-    UINT_8                      ucRetryLimit;           /* The retry limit */
-    UINT_32                     u4RemainingLifetime;    /* Remaining lifetime, unit:ms */
+    
+    UINT_32                     u4Option;               
+    INT_8                       cPowerOffset;           
+    UINT_16                     u2SwSN;                 
+    UINT_8                      ucRetryLimit;           
+    UINT_32                     u4RemainingLifetime;    
 
-    /* Control flag */
-    UINT_8                      ucControlFlag;          /* Control flag in bitmask */
+    
+    UINT_8                      ucControlFlag;          
 
-    /* Fixed Rate Option */
-    UINT_8                      ucRateMode;             /* Rate mode: AUTO, MANUAL_DESC, MANUAL_CR */
-    UINT_32                     u4FixedRateOption;      /* The rate option, rate code, GI, etc... */
+    
+    UINT_8                      ucRateMode;             
+    UINT_32                     u4FixedRateOption;      
 
-    BOOLEAN                     fgIsTXDTemplateValid;   /* There is a valid Tx descriptor for this packet */
+    BOOLEAN                     fgIsTXDTemplateValid;   
 
-    /* flattened from PACKET_INFO_T */
-    UINT_8                      ucMacHeaderLength;      /* MAC header legth */
-    UINT_8                      ucLlcLength;            /* w/o EtherType */
-    UINT_16                     u2FrameLength;          /* Total frame length */
-    UINT_8                      aucEthDestAddr[MAC_ADDR_LEN]; /* Ethernet Destination Address */
-    UINT_8                      ucPageCount;            /* Required page count for this MSDU */
+    
+    UINT_8                      ucMacHeaderLength;      
+    UINT_8                      ucLlcLength;            
+    UINT_16                     u2FrameLength;          
+    UINT_8                      aucEthDestAddr[MAC_ADDR_LEN]; 
+    UINT_8                      ucPageCount;            
 
-    /* for TX done tracking */
-	UINT_8 ucTxSeqNum;	/* MGMT frame serial number */
-    UINT_8                      ucPID;                  /* PID */
-    PFN_TX_DONE_HANDLER         pfTxDoneHandler;        /* Tx done handler */
+    
+	UINT_8 ucTxSeqNum;	
+    UINT_8                      ucPID;                  
+    PFN_TX_DONE_HANDLER         pfTxDoneHandler;        
 
 #if CFG_ENABLE_PKT_LIFETIME_PROFILE
     PKT_PROFILE_T               rPktProfile;
 #endif
 
-    /* To be removed  */
-    UINT_8                      ucFormatID;             /* 0: MAUI, Linux, Windows NDIS 5.1 */
-	/* UINT_16                     u2PalLLH;              */  /* PAL Logical Link Header (for BOW network) */
-	/* UINT_16                     u2AclSN;                 */ /* ACL Sequence Number (for BOW network) */
-    UINT_8                      ucPsForwardingType;     /* See ENUM_PS_FORWARDING_TYPE_T */
-	/* UINT_8                      ucPsSessionID;        */ /* PS Session ID specified by the FW for the STA */
-	/* BOOLEAN                     fgIsBurstEnd;         */ /* TRUE means this is the last packet of the burst for (STA, TID) */
+    
+    UINT_8                      ucFormatID;             
+	  
+	 
+    UINT_8                      ucPsForwardingType;     
+	 
+	 
 #if CFG_M0VE_BA_TO_DRIVER
 	UINT_8						ucTID;
 #endif
 
 #if CFG_SUPPORT_MULTITHREAD
-    /* Compose TxDesc in tx_thread and place here */
+    
     UINT_8                      ucTxDescBuffer[NIC_TX_DESC_AND_PADDING_LENGTH];
 #endif
 };
 
-/*!A data structure which is identical with HW MAC TX DMA Descriptor */
 typedef struct _HW_MAC_TX_DESC_T {
-    /* DW 0 */
+    
     UINT_16     u2TxByteCount;
-	UINT_8 ucEtherOffset;	/* Ether-Type Offset,  IP checksum offload */
-	UINT_8 ucPortIdx_QueueIdx;	/* UDP/TCP checksum offload,  USB NextVLD/TxBURST, Queue index, Port index */
-    /* DW 1 */
+	UINT_8 ucEtherOffset;	
+	UINT_8 ucPortIdx_QueueIdx;	
+    
     UINT_8      ucWlanIdx;
-    UINT_8      ucHeaderFormat;         /* Header format, TX descriptor format */
-    UINT_8      ucHeaderPadding;        /* Header padding, no ACK, TID, Protect frame */
+    UINT_8      ucHeaderFormat;         
+    UINT_8      ucHeaderPadding;        
     UINT_8      ucOwnMAC;
 
-    /* Long Format, the following structure is for long format ONLY */
-    /* DW 2 */
-    UINT_8      ucType_SubType;         /* Type, Sub-type, NDP, NDPA */
-    UINT_8      ucFrag;                 /* Sounding, force RTS/CTS, BMC, BIP, Duration, HTC exist, Fragment */
+    
+    
+    UINT_8      ucType_SubType;         
+    UINT_8      ucFrag;                 
     UINT_8      ucRemainingMaxTxTime;
-	UINT_8 ucPowerOffset;	/* Power offset, Disable BA, Timing measurement, Fixed rate */
-    /* DW 3 */
-    UINT_16     u2TxCountLimit;         /* TX count limit */
-    UINT_16     u2SN;                   /* SN, HW own, PN valid, SN valid */
-    /* DW 4 */
+	UINT_8 ucPowerOffset;	
+    
+    UINT_16     u2TxCountLimit;         
+    UINT_16     u2SN;                   
+    
     UINT_32     u4PN1;
-    /* DW 5 */
+    
     UINT_8      ucPID;
-	UINT_8 ucTxStatus;	/* TXS format, TXS to mcu, TXS to host, DA source, BAR SSN, Power management */
+	UINT_8 ucTxStatus;	
     UINT_16     u2PN2;
-    /* DW 6 */
-    UINT_8      ucAntID;                /* Fixed rate, Antenna ID */
-    UINT_8      ucBandwidth;            /* Bandwidth,  Spatial Extension, Antenna priority, Dynamic bandwidth */
-    UINT_16     u2FixedRate;            /* Explicit/implicit beamforming, Fixed rate table, LDPC, GI */
+    
+    UINT_8      ucAntID;                
+    UINT_8      ucBandwidth;            
+    UINT_16     u2FixedRate;            
 } HW_MAC_TX_DESC_T, *P_HW_MAC_TX_DESC_T, **PP_HW_MAC_TX_DESC_T;
 
 typedef struct _TX_RESOURCE_CONTROL_T {
-    /* HW TX queue definition */
+    
     UINT_8      ucDestPortIndex;
     UINT_8      ucDestQueueIndex;
-	/* HIF Interrupt status index */
+	
     UINT_8      ucHifTxQIndex;
 } TX_RESOURCE_CONTROL_T, *PTX_RESOURCE_CONTROL_T;
 
@@ -1056,20 +595,8 @@ typedef struct _TX_TC_TRAFFIC_SETTING_T {
 } TX_TC_TRAFFIC_SETTING_T, P_TX_TC_TRAFFIC_SETTING_T;
 
 
-/*******************************************************************************
-*                            P U B L I C   D A T A
-********************************************************************************
-*/
 
-/*******************************************************************************
-*                           P R I V A T E   D A T A
-********************************************************************************
-*/
 
-/*******************************************************************************
-*                                 M A C R O S
-********************************************************************************
-*/
 
 #define TX_INC_CNT(prTxCtrl, eCounter)              \
     {((P_TX_CTRL_T)prTxCtrl)->au4Statistics[eCounter]++; }
@@ -1115,17 +642,9 @@ typedef struct _TX_TC_TRAFFIC_SETTING_T {
             CHECK_FOR_TIMEOUT((_pkt)->rHifTxDoneTimestamp, (_pkt)->rDequeueTimestamp, (_delta))) 
 #endif
 
-/*------------------------------------------------------------------------------
- * MACRO for MSDU_INFO
- *------------------------------------------------------------------------------
- */
 #define TX_SET_MMPDU            nicTxSetMngPacket
 #define TX_SET_DATA_PACKET      nicTxSetDataPacket
 
-/*------------------------------------------------------------------------------
- * MACRO for HW_MAC_TX_DESC_T
- *------------------------------------------------------------------------------
- */
 #define TX_DESC_GET_FIELD(_rHwMacTxDescField, _mask, _offset) \
                 (((_rHwMacTxDescField) & (_mask)) >> (_offset))
 #define TX_DESC_SET_FIELD(_rHwMacTxDescField, _value, _mask, _offset)  \
@@ -1137,7 +656,6 @@ typedef struct _TX_TC_TRAFFIC_SETTING_T {
 #define HAL_MAC_TX_DESC_GET_DW(_prHwMacTxDesc, _ucOffsetInDw, _ucLengthInDw, _pucValueAddr) \
         kalMemCopy((PUINT_8)(_pucValueAddr), (PUINT_32)(_prHwMacTxDesc) + (_ucOffsetInDw), DWORD_TO_BYTE(_ucLengthInDw));
 
-/* DW 0 */
 #define HAL_MAC_TX_DESC_GET_TX_BYTE_COUNT(_prHwMacTxDesc) ((_prHwMacTxDesc)->u2TxByteCount)
 #define HAL_MAC_TX_DESC_SET_TX_BYTE_COUNT(_prHwMacTxDesc, _u2TxByteCount) \
         ((_prHwMacTxDesc)->u2TxByteCount) = ((UINT_16)_u2TxByteCount)
@@ -1173,7 +691,6 @@ typedef struct _TX_TC_TRAFFIC_SETTING_T {
 #define HAL_MAC_TX_DESC_SET_PORT_INDEX(_prHwMacTxDesc, _ucPortIndex) \
         TX_DESC_SET_FIELD(((_prHwMacTxDesc)->ucPortIdx_QueueIdx), ((UINT_8)_ucPortIndex), TX_DESC_PORT_INDEX, TX_DESC_PORT_INDEX_OFFSET)
 
-/* DW 1 */
 #define HAL_MAC_TX_DESC_GET_WLAN_INDEX(_prHwMacTxDesc) \
         (_prHwMacTxDesc)->ucWlanIdx
 #define HAL_MAC_TX_DESC_SET_WLAN_INDEX(_prHwMacTxDesc, _ucWlanIdx) \
@@ -1188,7 +705,6 @@ typedef struct _TX_TC_TRAFFIC_SETTING_T {
 #define HAL_MAC_TX_DESC_SET_HEADER_FORMAT(_prHwMacTxDesc, _ucHdrFormat) \
         TX_DESC_SET_FIELD(((_prHwMacTxDesc)->ucHeaderFormat), ((UINT_8)_ucHdrFormat), TX_DESC_HEADER_FORMAT_MASK, TX_DESC_HEADER_FORMAT_OFFSET)
 
-/* HF = 0x00, 802.11 normal mode */
 #define HAL_MAC_TX_DESC_IS_MORE_DATA(_prHwMacTxDesc) (((_prHwMacTxDesc)->ucHeaderFormat & TX_DESC_NON_802_11_MORE_DATA)?TRUE:FALSE)
 #define HAL_MAC_TX_DESC_SET_MORE_DATA(_prHwMacTxDesc) ((_prHwMacTxDesc)->ucHeaderFormat |= TX_DESC_NON_802_11_MORE_DATA)
 #define HAL_MAC_TX_DESC_UNSET_MORE_DATA(_prHwMacTxDesc) ((_prHwMacTxDesc)->ucHeaderFormat &= ~TX_DESC_NON_802_11_MORE_DATA)
@@ -1205,17 +721,14 @@ typedef struct _TX_TC_TRAFFIC_SETTING_T {
 #define HAL_MAC_TX_DESC_SET_ETHERNET_II(_prHwMacTxDesc) ((_prHwMacTxDesc)->ucHeaderFormat |= TX_DESC_NON_802_11_ETHERNET_II)
 #define HAL_MAC_TX_DESC_UNSET_ETHERNET_II(_prHwMacTxDesc) ((_prHwMacTxDesc)->ucHeaderFormat &= ~TX_DESC_NON_802_11_ETHERNET_II)
 
-/* HF = 0x00/0x11, 802.11 normal/enhancement mode */
 #define HAL_MAC_TX_DESC_IS_EOSP(_prHwMacTxDesc) (((_prHwMacTxDesc)->ucHeaderFormat & TX_DESC_NON_802_11_EOSP)?TRUE:FALSE)
 #define HAL_MAC_TX_DESC_SET_EOSP(_prHwMacTxDesc) ((_prHwMacTxDesc)->ucHeaderFormat |= TX_DESC_NON_802_11_EOSP)
 #define HAL_MAC_TX_DESC_UNSET_EOSP(_prHwMacTxDesc) ((_prHwMacTxDesc)->ucHeaderFormat &= ~TX_DESC_NON_802_11_EOSP)
 
-/* HF = 0x11, 802.11 enhancement mode */
 #define HAL_MAC_TX_DESC_IS_AMSDU(_prHwMacTxDesc) (((_prHwMacTxDesc)->ucHeaderFormat & TX_DESC_ENH_802_11_AMSDU)?TRUE:FALSE)
 #define HAL_MAC_TX_DESC_SET_AMSDU(_prHwMacTxDesc) ((_prHwMacTxDesc)->ucHeaderFormat |= TX_DESC_ENH_802_11_AMSDU)
 #define HAL_MAC_TX_DESC_UNSET_AMSDU(_prHwMacTxDesc) ((_prHwMacTxDesc)->ucHeaderFormat &= ~TX_DESC_ENH_802_11_AMSDU)
 
-/* HF = 0x10, non-802.11 */
 #define HAL_MAC_TX_DESC_GET_802_11_HEADER_LENGTH(_prHwMacTxDesc) \
         TX_DESC_GET_FIELD((_prHwMacTxDesc)->ucHeaderFormat, TX_DESC_NOR_802_11_HEADER_LENGTH_MASK, TX_DESC_NOR_802_11_HEADER_LENGTH_OFFSET)
 #define HAL_MAC_TX_DESC_SET_802_11_HEADER_LENGTH(_prHwMacTxDesc, _ucHdrLength) \
@@ -1249,7 +762,6 @@ typedef struct _TX_TC_TRAFFIC_SETTING_T {
 #define HAL_MAC_TX_DESC_SET_OWN_MAC_INDEX(_prHwMacTxDesc, _ucOwnMacIdx) \
         TX_DESC_SET_FIELD(((_prHwMacTxDesc)->ucOwnMAC), ((UINT_8)_ucOwnMacIdx), TX_DESC_OWN_MAC_MASK, TX_DESC_OWN_MAC_OFFSET)
 
-/* DW 2 */
 #define HAL_MAC_TX_DESC_GET_SUB_TYPE(_prHwMacTxDesc) \
         TX_DESC_GET_FIELD((_prHwMacTxDesc)->ucType_SubType, TX_DESC_SUB_TYPE_MASK, TX_DESC_SUB_TYPE_OFFSET)
 #define HAL_MAC_TX_DESC_SET_SUB_TYPE(_prHwMacTxDesc, _ucSubType) \
@@ -1298,11 +810,8 @@ typedef struct _TX_TC_TRAFFIC_SETTING_T {
 #define HAL_MAC_TX_DESC_SET_FRAG_PACKET_POS(_prHwMacTxDesc, _ucFragPos) \
         TX_DESC_SET_FIELD(((_prHwMacTxDesc)->ucFrag), ((UINT_8)_ucFragPos), TX_DESC_FRAGMENT_MASK, TX_DESC_FRAGMENT_OFFSET)
 
-/* For driver */
-/* in unit of 32TU */
 #define HAL_MAC_TX_DESC_GET_REMAINING_LIFE_TIME(_prHwMacTxDesc) ((_prHwMacTxDesc)->ucRemainingMaxTxTime)
 #define HAL_MAC_TX_DESC_SET_REMAINING_LIFE_TIME(_prHwMacTxDesc, _ucLifeTime) (_prHwMacTxDesc)->ucRemainingMaxTxTime = (_ucLifeTime)
-/* in unit of ms (minimal value is about 40ms) */
 #define HAL_MAC_TX_DESC_GET_REMAINING_LIFE_TIME_IN_MS(_prHwMacTxDesc) \
         (TU_TO_MSEC(HAL_MAC_TX_DESC_GET_REMAINING_LIFE_TIME(_prHwMacTxDesc) << TX_DESC_LIFE_TIME_UNIT_IN_POWER_OF_2))
 #define HAL_MAC_TX_DESC_SET_REMAINING_LIFE_TIME_IN_MS(_prHwMacTxDesc, _u4LifeTimeMs) \
@@ -1335,7 +844,6 @@ typedef struct _TX_TC_TRAFFIC_SETTING_T {
 #define HAL_MAC_TX_DESC_SET_FIXED_RATE_DISABLE(_prHwMacTxDesc) ((_prHwMacTxDesc)->ucPowerOffset &= ~TX_DESC_FIXED_RATE)
 
 
-/* DW 3 */
 #define HAL_MAC_TX_DESC_GET_SW_RESERVED(_prHwMacTxDesc) \
         TX_DESC_GET_FIELD((_prHwMacTxDesc)->u2TxCountLimit, TX_DESC_SW_RESERVED_MASK, TX_DESC_SW_RESERVED_OFFSET)
 #define HAL_MAC_TX_DESC_SET_SW_RESERVED(_prHwMacTxDesc, _ucSwReserved) \
@@ -1373,7 +881,6 @@ typedef struct _TX_TC_TRAFFIC_SETTING_T {
         HAL_MAC_TX_DESC_SET_TXD_SN_INVALID(_prHwMacTxDesc); \
 }
 
-/* DW 4 */
 #define HAL_MAC_TX_DESC_GET_PN(_prHwMacTxDesc, _u4PN_0_31, _u2PN_32_47) \
 { \
         ((UINT_32)_u4PN_0_31) = (_prHwMacTxDesc)->u4PN1; \
@@ -1397,7 +904,6 @@ typedef struct _TX_TC_TRAFFIC_SETTING_T {
 }
 
 
-/* DW 5 */
 #define HAL_MAC_TX_DESC_GET_PID(_prHwMacTxDesc) \
         (_prHwMacTxDesc)->ucPID
 #define HAL_MAC_TX_DESC_SET_PID(_prHwMacTxDesc, _ucPID) \
@@ -1429,7 +935,6 @@ typedef struct _TX_TC_TRAFFIC_SETTING_T {
 #define HAL_MAC_TX_DESC_SET_HW_PM_CONTROL(_prHwMacTxDesc) ((_prHwMacTxDesc)->ucPowerOffset &= ~TX_DESC_POWER_MANAGEMENT_CONTROL)
 
 
-/* DW 6 */
 #define HAL_MAC_TX_DESC_IS_CR_FIXED_RATE_MODE(_prHwMacTxDesc) (((_prHwMacTxDesc)->ucAntID & TX_DESC_FIXED_RATE_MODE)?TRUE:FALSE)
 #define HAL_MAC_TX_DESC_SET_FIXED_RATE_MODE_TO_DESC(_prHwMacTxDesc) \
     ((_prHwMacTxDesc)->ucAntID &= ~TX_DESC_FIXED_RATE_MODE)
@@ -1471,10 +976,6 @@ typedef struct _TX_TC_TRAFFIC_SETTING_T {
 
 
 
-/*******************************************************************************
-*                  F U N C T I O N   D E C L A R A T I O N S
-********************************************************************************
-*/
 VOID nicTxInitialize(IN P_ADAPTER_T prAdapter);
 
 WLAN_STATUS nicTxAcquireResource(IN P_ADAPTER_T prAdapter, IN UINT_8 ucTC, IN UINT_8 ucPageCount);
@@ -1634,9 +1135,5 @@ nicTxPrintMetRTP (
     );
 
 
-/*******************************************************************************
-*                              F U N C T I O N S
-********************************************************************************
-*/
 
-#endif /* _NIC_TX_H */
+#endif 

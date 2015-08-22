@@ -381,7 +381,7 @@ static void check_sw_recharge(void)
 
         
         
-        if(BMT_status.SOC <= 97 || BMT_status.keep_charger_on) 
+		if(BMT_status.SOC <= 99 || BMT_status.keep_charger_on) 
         {
             if(recount >= 70 || BMT_status.keep_charger_on) {
                 recount = 0;

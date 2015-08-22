@@ -1264,6 +1264,8 @@ struct msdc_host {
 	u32 dma_xfer_size;	
 	int dma_xfer;		
 
+	u32 write_timeout_ms;     
+
 	u32 timeout_ns;		
 	u32 timeout_clks;	
 
@@ -1321,7 +1323,7 @@ struct msdc_host {
     u32                         sw_timeout;
     u32                         power_cycle; 
     bool                        power_cycle_enable;    
-    bool error_tune_enable; 
+    u32	                        continuous_fail_request_count;
     u32                         sd_30_busy;
     bool                        tune;
     MSDC_POWER_DOMAIN           power_domain;
@@ -1332,6 +1334,8 @@ struct msdc_host {
                                                    
     struct wake_lock            trans_lock;
     bool                        block_bad_card;                                               
+    struct delayed_work         write_timeout;       
+
 #ifdef SDIO_ERROR_BYPASS      
     int                         sdio_error;     
 #endif									   

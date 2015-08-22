@@ -1828,16 +1828,6 @@ INT32 hif_sdio_stp_off(VOID)
 		func = g_hif_sdio_probed_func_list[probe_index].func;
 
 		
-		ret =
-		    g_hif_sdio_clt_drv_list[clt_index].sdio_cltinfo->
-		    hif_clt_remove(CLTCTX(func->device, func->num, func->cur_blksize, probe_index));
-		if (ret) {
-			HIF_SDIO_WARN_FUNC("clt_remove for stp fail(%d)\n", ret);
-		} else {
-			HIF_SDIO_INFO_FUNC("ok!\n");
-		}
-
-		
 		sdio_claim_host(func);
 		mtk_wcn_hif_sdio_irq_flag_set(0);
 		ret2 = sdio_release_irq(func);
@@ -1848,6 +1838,16 @@ INT32 hif_sdio_stp_off(VOID)
 			HIF_SDIO_WARN_FUNC("sdio_release_irq() for stp fail(%d)\n", ret2);
 		} else {
 			HIF_SDIO_INFO_FUNC("sdio_release_irq() for stp ok\n");
+		}
+
+		
+		ret =
+		    g_hif_sdio_clt_drv_list[clt_index].sdio_cltinfo->
+		    hif_clt_remove(CLTCTX(func->device, func->num, func->cur_blksize, probe_index));
+		if (ret) {
+			HIF_SDIO_WARN_FUNC("clt_remove for stp fail(%d)\n", ret);
+		} else {
+			HIF_SDIO_INFO_FUNC("ok!\n");
 		}
 
 		
@@ -2065,16 +2065,6 @@ INT32 hif_sdio_wifi_off(VOID)
 		func = g_hif_sdio_probed_func_list[probe_index].func;
 
 		
-		ret =
-		    g_hif_sdio_clt_drv_list[clt_index].sdio_cltinfo->
-		    hif_clt_remove(CLTCTX(func->device, func->num, func->cur_blksize, probe_index));
-		if (ret) {
-			HIF_SDIO_WARN_FUNC("clt_remove for wifi fail(%d)\n", ret);
-		} else {
-			HIF_SDIO_INFO_FUNC("ok!\n");
-		}
-
-		
 		sdio_claim_host(func);
 		mtk_wcn_hif_sdio_irq_flag_set(0);
 		ret2 = sdio_release_irq(func);
@@ -2084,6 +2074,16 @@ INT32 hif_sdio_wifi_off(VOID)
 			HIF_SDIO_WARN_FUNC("sdio_release_irq() for wifi fail(%d)\n", ret2);
 		} else {
 			HIF_SDIO_INFO_FUNC("sdio_release_irq() for wifi ok\n");
+		}
+
+		
+		ret =
+		    g_hif_sdio_clt_drv_list[clt_index].sdio_cltinfo->
+		    hif_clt_remove(CLTCTX(func->device, func->num, func->cur_blksize, probe_index));
+		if (ret) {
+			HIF_SDIO_WARN_FUNC("clt_remove for wifi fail(%d)\n", ret);
+		} else {
+			HIF_SDIO_INFO_FUNC("ok!\n");
 		}
 
 		
