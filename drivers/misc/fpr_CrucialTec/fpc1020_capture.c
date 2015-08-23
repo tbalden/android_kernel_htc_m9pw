@@ -1,6 +1,7 @@
 /* FPC1020 Touch sensor driver
  *
  * Copyright (c) 2013,2014 Fingerprint Cards AB <tech@fingerprints.com>
+ * Copyright (c) 2015 Illes Pal Zoltan <illespal@gmail.com> fingerprint mod
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License Version 2
@@ -14,6 +15,14 @@
 #include <linux/time.h>
 #include <mach/battery_common.h>
 
+#ifdef CONFIG_FINGERPRINT_MOD
+// tbalden
+#include <linux/input/max1187x.h>
+#include <linux/input/fpc1020_inc.h>
+#include <linux/config/fingerprint_mod.h>
+#endif
+
+
 #ifndef CONFIG_OF
 #include <linux/spi/fpc1020_common.h>
 #include <linux/spi/fpc1020_capture.h>
@@ -22,6 +31,44 @@
 #include "fpc1020_capture.h"
 #endif
 
+
+
+#ifdef CONFIG_FINGERPRINT_MOD
+// tbalden
+static struct input_dev * power_onoff_pwrdev;
+static DEFINE_MUTEX(pwrlock);
+
+static int count_finger_up = 0;
+static unsigned int count_finger_up_start_time = 0;
+
+extern void power_onoff_setdev_capture(struct input_dev * input_device) {
+        power_onoff_pwrdev = input_device;
+        return;
+}
+EXPORT_SYMBOL(power_onoff_setdev_capture);
+
+static void power_onoff_presspwr(struct work_struct * power_onoff_presspwr_work) {
+
+	if (!mutex_trylock(&pwrlock))
+	    return;
+	printk("sending event KEY_POWER 1\n");
+	input_event(power_onoff_pwrdev, EV_KEY, KEY_POWER, 1);
+	input_sync(power_onoff_pwrdev);
+	msleep(100);
+	input_event(power_onoff_pwrdev, EV_KEY, KEY_POWER, 0);
+	input_sync(power_onoff_pwrdev);
+	msleep(100);
+
+	mutex_unlock(&pwrlock);
+	return;
+}
+static DECLARE_WORK(power_onoff_presspwr_work, power_onoff_presspwr);
+
+void press_pwrtrigger(void) {
+	schedule_work(&power_onoff_presspwr_work);
+	return;
+}
+#endif
 
 static size_t fpc1020_calc_image_size(fpc1020_data_t *fpc1020);
 
@@ -348,6 +395,11 @@ int fpc1020_capture_task(fpc1020_data_t *fpc1020)
 		if (error < 0)
 			goto out_error;
 
+#ifdef CONFIG_FINGERPRINT_MOD
+// tbalden fingerprint sleep
+		dev_dbg(&fpc1020->spi->dev, "[fingerprint sleep] Finger up. Screen on %d \n", is_screen_on());
+// this didn't happen while testing, ignoring it in counting.
+#endif
 		dev_dbg(&fpc1020->spi->dev, "Finger up\n");
 
 		fpc1020->capture.deferred_finger_up = false;
@@ -362,6 +414,11 @@ int fpc1020_capture_task(fpc1020_data_t *fpc1020)
 		if (error < 0)
 			goto out_error;
 
+#ifdef CONFIG_FINGERPRINT_MOD
+// tbalden fingerprint sleep
+		dev_dbg(&fpc1020->spi->dev, "[fingerprint sleep] Finger down. Screen on %d \n", is_screen_on());
+
+#endif
 		dev_dbg(&fpc1020->spi->dev, "Finger down\n");
 
 		if (mode == FPC1020_MODE_WAIT_FINGER_DOWN) {
@@ -486,6 +543,33 @@ int fpc1020_capture_task(fpc1020_data_t *fpc1020)
 			wake_up_interruptible(&fpc1020->capture.wq_data_avail);
 		}
 
+#ifdef CONFIG_FINGERPRINT_MOD
+		if (fingerprint_mod_enabled == 1)
+		{
+			// tbalden fingerprint sleep
+			dev_dbg(&fpc1020->spi->dev, "[fingerprint sleep] Finger up. Screen on %d \n", is_screen_on());
+			if (is_screen_on()) {
+				unsigned int delta = jiffies - count_finger_up_start_time;
+				dev_dbg(&fpc1020->spi->dev, "[fingerprint sleep] count %d time %u delta %u \n", count_finger_up, count_finger_up_start_time, delta);
+				if (delta > 23 + (fingerprint_mod_opt_timeout * 2)) {
+					count_finger_up = 0; // timeout
+					count_finger_up_start_time = jiffies;
+				} else {
+					count_finger_up++;
+					//if (count_finger_up>=2) 
+					{
+						dev_dbg(&fpc1020->spi->dev, "[fingerprint sleep] Two finger ups with screen on with low enough time delta, powering off screen. Screen on %d \n", is_screen_on());
+						count_finger_up = 0;
+						press_pwrtrigger();
+					}
+				}
+			} else {
+				count_finger_up = 0;
+				count_finger_up_start_time = 0;
+			}
+		}
+
+#endif
 		dev_dbg(&fpc1020->spi->dev, "Finger up\n");
 	}
 
