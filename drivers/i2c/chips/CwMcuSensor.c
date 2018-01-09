@@ -1794,6 +1794,9 @@ u16 get_proximity_adc(void) {
 		return 0;
 	}
 }
+#if 1
+EXPORT_SYMBOL(get_proximity_adc);
+#endif
 
 static ssize_t get_proximity(struct device *dev, struct device_attribute *attr,
                             char *buf)
